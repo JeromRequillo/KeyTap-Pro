@@ -316,7 +316,7 @@ LaunchGUI() {
     mainGui.SetFont("s9", "Segoe UI")
     mainGui.Add("Text", "x20 y213 w80 h18", "Modifier:")
     mainGui.Add("Text", "x108 y213 w40 h18", "Key:")
-    mainGui.Add("Text", "x160 y213 w200 h18", "Text to Output (multi-line ok):")
+    mainGui.Add("Text", "x160 y213 w200 h18", "Text to Output :")
 
     modifierChoices := ["Alt (!)", "Ctrl (^)", "Shift (+)", "Ctrl+Alt (^!)", "Alt+Shift (!+)", "Ctrl+Shift (^+)"]
     ddModifier := mainGui.Add("DropDownList", "x20 y231 w82 h120", modifierChoices)
@@ -470,7 +470,7 @@ LaunchGUI() {
     ; --- New Profile button ---
     NewProfile(*) {
         global active_profile
-        newName := InputBox("Enter a name for the new profile:", "New Profile", "w300 h120").Value
+        newName := InputBox("Enter new profile name:", "New Profile", "w300 h120").Value
         if (newName == "" || newName == 0)
             return
         ; Check duplicate

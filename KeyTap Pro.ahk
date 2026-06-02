@@ -1,5 +1,5 @@
-;@Ahk2Exe-SetFileVersion 4.1.0.0
-;@Ahk2Exe-SetProductVersion 4.1.0.0
+;@Ahk2Exe-SetFileVersion 4.2.0.0
+;@Ahk2Exe-SetProductVersion 4.2.0.0
 ;@Ahk2Exe-SetCompanyName Jerom Requillo
 ;@Ahk2Exe-SetDescription KeyTap Pro - Workflow Automation Suite
 ;@Ahk2Exe-SetCopyright Copyright (C) 2026 Jerom Requillo. All rights reserved.
@@ -8,15 +8,17 @@
 #SingleInstance Force
 
 ; --- SYSTEM TRAY CONFIGURATION ---
-A_IconTip := "🎯 KeyTap pro v4.1"
+A_IconTip := "🎯 KeyTap pro v4.2"
 TrayRecalcMenu()
 
 ; Global Variables
-global current_num := "0000000"
-global prefix := "AAPI"
-global suffix := "S"
-global mainGui := ""
-global hotkeyList := [] ; [{key: "!B", txt: "text", enabled: true}, ...]
+global current_num  := "0000000"
+global prefix       := "AAPI"
+global suffix       := "S"
+global digit_length := 7          ; NEW: custom digit length, default 7
+global active_profile := "Default" ; NEW: currently active profile name
+global mainGui      := ""
+global hotkeyList   := []
 global activeHotkeys := Map()
 
 ; Reserved/system hotkeys na bawal i-conflict
@@ -37,11 +39,19 @@ TrayRecalcMenu() {
 }
 
 LoadSettings() {
-    global current_num, prefix, suffix, hotkeyList
+    global current_num, prefix, suffix, digit_length, active_profile, hotkeyList
 
-    current_num := IniRead("settings.ini", "Sequence", "LastNumber", "00000")
-    prefix := IniRead("settings.ini", "Settings", "Prefix", "AAPI")
-    suffix := IniRead("settings.ini", "Settings", "Suffix", "S")
+    ; Load active profile name first
+    active_profile := IniRead("settings.ini", "Settings", "ActiveProfile", "Default")
+
+    ; Load settings from the active profile section
+    profileSection := "Profile_" . active_profile
+    current_num  := IniRead("settings.ini", profileSection, "LastNumber", "0")
+    prefix       := IniRead("settings.ini", profileSection, "Prefix", "AAPI")
+    suffix       := IniRead("settings.ini", profileSection, "Suffix", "S")
+    digit_length := Integer(IniRead("settings.ini", profileSection, "DigitLength", "7"))
+    if (digit_length < 1)
+        digit_length := 7
 
     hotkeyList := []
     try {
@@ -62,6 +72,37 @@ LoadSettings() {
             {key: "!S", txt: "SAMPLE TXT", enabled: true}
         ]
     }
+}
+
+; NEW: Save just the invoice profile settings (not hotkeys)
+SaveProfileSettings(profileName, pfx, num, sfx, dlen) {
+    profileSection := "Profile_" . profileName
+    IniWrite(pfx,   "settings.ini", profileSection, "Prefix")
+    IniWrite(num,   "settings.ini", profileSection, "LastNumber")
+    IniWrite(sfx,   "settings.ini", profileSection, "Suffix")
+    IniWrite(dlen,  "settings.ini", profileSection, "DigitLength")
+}
+
+; NEW: Get list of all saved profile names from settings.ini
+GetProfileList() {
+    profiles := ["Default"]
+    try {
+        allSections := IniRead("settings.ini")
+        Loop Parse, allSections, "`n", "`r" {
+            if (SubStr(A_LoopField, 1, 8) == "Profile_") {
+                pName := SubStr(A_LoopField, 9)
+                if (pName != "Default") {
+                    found := false
+                    for p in profiles
+                        if (p == pName)
+                            found := true
+                    if (!found)
+                        profiles.Push(pName)
+                }
+            }
+        }
+    }
+    return profiles
 }
 
 RegisterCustomHotkeys() {
@@ -89,12 +130,13 @@ CreateHotkeyFunc(txt) {
     return (*) => SendInput(txt)
 }
 
-GenerateInvoice(p := "", n := 0, s := "") {
-    global prefix, current_num, suffix
-    target_prefix := (p == "") ? prefix : p
-    target_num    := (n == 0) ? current_num : n
-    target_suffix := (s == "") ? suffix : s
-    formatted_num := Format("{:07}", target_num)
+GenerateInvoice(p := "", n := 0, s := "", dlen := 0) {
+    global prefix, current_num, suffix, digit_length
+    target_prefix := (p == "")    ? prefix       : p
+    target_num    := (n == 0)     ? current_num  : n
+    target_suffix := (s == "")    ? suffix       : s
+    target_dlen   := (dlen == 0)  ? digit_length : dlen
+    formatted_num := Format("{:0" . target_dlen . "}", target_num)
     return target_prefix . formatted_num . target_suffix
 }
 
@@ -107,9 +149,10 @@ GenerateInvoice(p := "", n := 0, s := "") {
     SoundBeep(750, 50)
     ToolTip("Sent: " . invoice_string)
     SetTimer(() => ToolTip(), -2000)
-    global current_num
+    global current_num, active_profile, digit_length, prefix, suffix
     current_num := Number(current_num) + 1
-    IniWrite(current_num, "settings.ini", "Sequence", "LastNumber")
+    profileSection := "Profile_" . active_profile
+    IniWrite(current_num, "settings.ini", profileSection, "LastNumber")
 }
 
 !F10:: LaunchGUI()
@@ -124,9 +167,9 @@ GenerateInvoice(p := "", n := 0, s := "") {
     }
     CleanAmount := StrReplace(A_Clipboard, ",", "")
     if IsNumber(CleanAmount) {
-        NetAmount   := Number(CleanAmount) / 1.12
+        NetAmount    := Number(CleanAmount) / 1.12
         FormattedNet := Round(NetAmount, 2)
-        A_Clipboard := FormattedNet
+        A_Clipboard  := FormattedNet
         Send("^v")
         ToolTip("VAT Deducted: " . FormattedNet)
         SetTimer(() => ToolTip(), -2000)
@@ -139,69 +182,106 @@ GenerateInvoice(p := "", n := 0, s := "") {
 ; --- MAIN GUI LAUNCHER ---
 
 LaunchGUI() {
-    global mainGui, current_num, prefix, suffix, hotkeyList
+    global mainGui, current_num, prefix, suffix, digit_length, active_profile, hotkeyList
 
     LoadSettings()
 
     if (mainGui != "")
         mainGui.Destroy()
 
-    mainGui := Gui("-MaximizeBox", "🎯 KeyTap Pro v4.1")
+    mainGui := Gui("-MaximizeBox", "🎯 KeyTap Pro v4.2")
     mainGui.OnEvent("Close", (*) => mainGui.Destroy())
     mainGui.SetFont("s10", "Segoe UI")
 
     tabMenu := mainGui.Add("Tab3", "x10 y10 w480 h400", ["Invoice Config", "Custom Text Hotkeys", "VAT Calculator", "About"])
 
     ; =========================================================
-    ; --- TAB 1: INVOICE CONFIGURATION (UNCHANGED) ---
+    ; --- TAB 1: INVOICE CONFIGURATION (UPGRADED) ---
     ; =========================================================
     tabMenu.UseTab(1)
 
-    mainGui.Add("Text", "x30 y55 w90 h20", "Prefix:")
-    guiCtrl_Prefix := mainGui.Add("Edit", "x130 y52 w170 h25", prefix)
+    ; --- Profile Selector Row ---
+    mainGui.SetFont("bold s9", "Segoe UI")
+    mainGui.Add("Text", "x20 y50 w55 h20", "Profile:")
+    mainGui.SetFont("s9 Norm", "Segoe UI")
+
+    profileList := GetProfileList()
+    ddProfile := mainGui.Add("DropDownList", "x78 y48 w160 h200", profileList)
+    ; Set dropdown to active profile
+    for i, p in profileList {
+        if (p == active_profile) {
+            ddProfile.Value := i
+            break
+        }
+    }
+
+    btnNewProfile := mainGui.Add("Button", "x244 y47 w70 h22", "➕ New")
+    btnDelProfile := mainGui.Add("Button", "x318 y47 w70 h22", "🗑 Delete")
+    btnNewProfile.OnEvent("Click", NewProfile)
+    btnDelProfile.OnEvent("Click", DeleteProfile)
+    ddProfile.OnEvent("Change", SwitchProfile)
+
+    ; --- Separator line ---
+    mainGui.Add("Text", "x20 y73 w440 h1 +0x10")  ; etched line
+
+    ; --- Prefix / Number / Suffix ---
+    mainGui.SetFont("s10 Norm", "Segoe UI")
+    mainGui.Add("Text", "x20 y82 w90 h20", "Prefix:")
+    guiCtrl_Prefix := mainGui.Add("Edit", "x115 y79 w160 h25", prefix)
     guiCtrl_Prefix.OnEvent("Change", UpdatePreview)
 
-    mainGui.Add("Text", "x30 y90 w90 h20", "Next Number:")
-    guiCtrl_Num := mainGui.Add("Edit", "x130 y87 w110 h25 Number", current_num)
+    mainGui.Add("Text", "x20 y112 w90 h20", "Next Number:")
+    guiCtrl_Num := mainGui.Add("Edit", "x115 y109 w100 h25 Number", current_num)
     guiCtrl_Num.OnEvent("Change", UpdatePreview)
 
-    btnReset := mainGui.Add("Button", "x245 y86 w55 h26", "Reset")
+    btnReset := mainGui.Add("Button", "x220 y108 w55 h26", "Reset")
     btnReset.OnEvent("Click", (*) => (guiCtrl_Num.Value := "0", UpdatePreview()))
 
-    mainGui.Add("Text", "x30 y125 w90 h20", "Suffix:")
-    guiCtrl_Suffix := mainGui.Add("Edit", "x130 y122 w170 h25", suffix)
+    mainGui.Add("Text", "x20 y142 w90 h20", "Suffix:")
+    guiCtrl_Suffix := mainGui.Add("Edit", "x115 y139 w160 h25", suffix)
     guiCtrl_Suffix.OnEvent("Change", UpdatePreview)
 
+    ; --- Digit Length ---
+    mainGui.Add("Text", "x20 y172 w90 h20", "Digit Length:")
+    guiCtrl_DigitLen := mainGui.Add("Edit", "x115 y169 w40 h25 Number", digit_length)
+    guiCtrl_DigitLen.OnEvent("Change", UpdatePreview)
+    mainGui.SetFont("s8 cGray", "Segoe UI")
+    mainGui.SetFont("s10 Norm", "Segoe UI")
+
+    ; --- Preview ---
     mainGui.SetFont("bold s10", "Segoe UI")
     current_preview := GenerateInvoice()
-    guiCtrl_PreviewText := mainGui.Add("Text", "x20 y160 w460 h20 Center +BackgroundTrans", "Preview: " . current_preview)
+    guiCtrl_PreviewText := mainGui.Add("Text", "x20 y200 w450 h20 Center +BackgroundTrans", "Preview: " . current_preview)
 
-    mainGui.SetFont("Norm s10 cGray", "Segoe UI")
-
+    mainGui.SetFont("Norm s9 cGray", "Segoe UI")
     invoiceTxt := "
     (
     💡PAANO GAMITIN ANG INVOICE GENERATOR:
 
-    1. Itakda ang 'Prefix' (unahan), 'Next Number' (gitna), at 'Suffix' (hulihan).
+    1. Pumili ng Profile o gumawa ng bago sa pamamagitan ng [➕ New].
 
-    2. I-click ang [ Save All Changes ] para mai-save ang iyong configuration.
+    2. Itakda ang Prefix, Next Number, Suffix, at Digit Length.
 
-    3. Pindutin ang [ Alt + F9 ] kahit saan para awtomatikong i-type ang Invoice!
+    3. I-click ang [ Save All Changes ] para mai-save.
+
+    4. Pindutin ang [ Alt + F9 ] kahit saan para awtomatikong i-type ang Invoice!
 
     💡 MAHALAGANG PAALALA:
 
-    • Auto-Increment: Sa tuwing pipindutin mo ang Alt + F9, awtomatikong madadagdagan ng +1 ang Next Number at mase-save sa settings.ini.
+    • Multiple Profiles: Bawat profile ay may sariling Prefix, Suffix, Digit Length, at sequence number. Ang pagpapalit ng profile ay agad na gagamitin ito sa Alt+F9.
 
-    • Format Length: Ang system ay gumagamit ng fixed 7-digit padding para sa numero (e.g., '1' ay magiging '0000001') para mapanatili ang tamang haba.
+    • Digit Length: Kontrolin kung ilang digit ang numero (e.g., 5 digits: '1' = '00001'). Default ay 7.
 
-    • Reset Button: I-click ang 'Reset' kung nais mong ibalik sa 0 ang panimulang numero.
+    • Auto-Increment: Sa bawat Alt+F9, awtomatikong +1 ang numero at nase-save sa kasalukuyang profile.
+
+    • Reset Button: Ibabalik sa 0 ang sequence number ng kasalukuyang profile.
     )"
-    mainGui.Add("Edit", "x30 y190 w420 h200 +ReadOnly +Wrap +VScroll -WantReturn", invoiceTxt)
+    mainGui.Add("Edit", "x20 y225 w450 h165 +ReadOnly +Wrap +VScroll -WantReturn", invoiceTxt)
 
     mainGui.SetFont("Norm s10 cDefault", "Segoe UI")
 
     ; =========================================================
-    ; --- TAB 2: CUSTOM TEXT HOTKEYS (UPGRADED) ---
+    ; --- TAB 2: CUSTOM TEXT HOTKEYS (UNCHANGED) ---
     ; =========================================================
     tabMenu.UseTab(2)
 
@@ -214,18 +294,14 @@ LaunchGUI() {
     mainGui.Add("Text", "x410 y51 w70 h18", "live search")
     mainGui.SetFont("s10 Norm", "Segoe UI")
 
-    ; --- ListView: Status | Shortcut Key | Text Output ---
-    ; +LV0x10 enables full-row selection color; we handle row colors via LV_Colors workaround
     LV := mainGui.Add("ListView", "x20 y74 w440 h130 +Grid -Multi", ["Status", "Shortcut Key", "Text / Name to Output"])
     LV.ModifyCol(1, 55)
     LV.ModifyCol(2, 100)
     LV.ModifyCol(3, 262)
 
-    ; --- Populate ListView ---
     RefreshListView(filterTxt := "") {
         LV.Delete()
         for hk in hotkeyList {
-            ; Apply search filter (checks key and text)
             if (filterTxt != "" && !InStr(hk.key, filterTxt) && !InStr(hk.txt, filterTxt))
                 continue
             statusTxt := hk.enabled ? "✅ ON" : "⛔ OFF"
@@ -234,22 +310,18 @@ LaunchGUI() {
     }
     RefreshListView()
 
-    ; Live search on keypress
     editSearch.OnEvent("Change", (*) => RefreshListView(editSearch.Value))
     btnClearSearch.OnEvent("Click", (*) => (editSearch.Value := "", RefreshListView()))
 
-    ; --- Input Row Labels ---
     mainGui.SetFont("s9", "Segoe UI")
     mainGui.Add("Text", "x20 y213 w80 h18", "Modifier:")
     mainGui.Add("Text", "x108 y213 w40 h18", "Key:")
     mainGui.Add("Text", "x160 y213 w200 h18", "Text to Output (multi-line ok):")
 
-    ; --- Modifier Dropdown ---
     modifierChoices := ["Alt (!)", "Ctrl (^)", "Shift (+)", "Ctrl+Alt (^!)", "Alt+Shift (!+)", "Ctrl+Shift (^+)"]
     ddModifier := mainGui.Add("DropDownList", "x20 y231 w82 h120", modifierChoices)
     ddModifier.Value := 1
 
-    ; --- Key Dropdown ---
     keyChoices := []
     Loop 26
         keyChoices.Push(Chr(64 + A_Index))
@@ -261,16 +333,11 @@ LaunchGUI() {
     ddKey := mainGui.Add("DropDownList", "x108 y231 w46 h300", keyChoices)
     ddKey.Value := 1
 
-    ; --- Multi-line Text Output ---
-    ; +WantReturn allows Enter key inside the edit box for multi-line
     editTxt := mainGui.Add("Edit", "x160 y231 w300 h50 +Multi +WantReturn +VScroll")
 
-    ; --- Buttons Row 1: Add/Delete/Toggle ---
-    btnAdd    := mainGui.Add("Button", "x20 y290 w100 h26", "➕ Add / Update")
-    btnDel    := mainGui.Add("Button", "x128 y290 w100 h26", "❌ Delete Line")
-    btnToggle := mainGui.Add("Button", "x236 y290 w110 h26", "🔁 Toggle ON/OFF")
-
-    ; --- Buttons Row 2: Move Up / Move Down (Drag-to-Reorder alternative) ---
+    btnAdd      := mainGui.Add("Button", "x20 y290 w100 h26", "➕ Add / Update")
+    btnDel      := mainGui.Add("Button", "x128 y290 w100 h26", "❌ Delete Line")
+    btnToggle   := mainGui.Add("Button", "x236 y290 w110 h26", "🔁 Toggle ON/OFF")
     btnMoveUp   := mainGui.Add("Button", "x354 y290 w50 h26", "▲ Up")
     btnMoveDown := mainGui.Add("Button", "x408 y290 w52 h26", "▼ Down")
 
@@ -321,14 +388,14 @@ LaunchGUI() {
     ; =========================================================
     tabMenu.UseTab(4)
     mainGui.SetFont("bold s11", "Segoe UI")
-    mainGui.Add("Text", "x25 y50 w400 h25 c0x0066CC", "🎯 KeyTap Pro v4.1")
+    mainGui.Add("Text", "x25 y50 w400 h25 c0x0066CC", "🎯 KeyTap Pro v4.2")
     mainGui.SetFont("s9", "Segoe UI")
-    mainGui.Add("Text", "x25 y75 w400 h18", "Version: 4.0.0 (Dynamic ListView)")
+    mainGui.Add("Text", "x25 y75 w400 h18", "Version: 4.2.0 (Dynamic ListView)")
     mainGui.Add("Text", "x25 y95 w400 h18", "Developer: Jerom Requillo")
 
     mainGui.SetFont("italic s9", "Segoe UI")
     mainGui.Add("Link", "x25 y120 w400 h20", 'GitHub: <a href="https://github.com/JeromRequillo">@JeromRequillo</a>')
-    mainGui.Add("Link", "x25 y140 w400 h20", 'Repository: <a href="https://github.com/JeromRequillo/KeyTap-Pro">JeromRequillo/🎯 KeyTap Pro v4.0</a>')
+    mainGui.Add("Link", "x25 y140 w400 h20", 'Repository: <a href="https://github.com/JeromRequillo/KeyTap-Pro">JeromRequillo/🎯 KeyTap Pro v4.2</a>')
 
     mainGui.SetFont("s10 Norm", "Segoe UI")
 
@@ -363,7 +430,7 @@ LaunchGUI() {
 
     tabMenu.UseTab()
 
-    ; --- BOTTOM BUTTONS (UNCHANGED) ---
+    ; --- BOTTOM BUTTONS ---
     mainGui.SetFont("Norm s10", "Segoe UI")
     btnSave   := mainGui.Add("Button", "x130 y425 w110 h32 Default", "Save All Changes")
     btnSave.OnEvent("Click", SaveSettings)
@@ -377,9 +444,87 @@ LaunchGUI() {
     ; =========================================================
 
     UpdatePreview(*) {
-        temp_preview := GenerateInvoice(guiCtrl_Prefix.Value, guiCtrl_Num.Value, guiCtrl_Suffix.Value)
+        dlen := (guiCtrl_DigitLen.Value == "" || Number(guiCtrl_DigitLen.Value) < 1) ? 7 : Number(guiCtrl_DigitLen.Value)
+        temp_preview := GenerateInvoice(guiCtrl_Prefix.Value, guiCtrl_Num.Value, guiCtrl_Suffix.Value, dlen)
         guiCtrl_PreviewText.Value := "Preview: " . temp_preview
     }
+
+    ; --- Load a profile's values into the GUI fields ---
+    LoadProfileIntoGui(pName) {
+        pSection := "Profile_" . pName
+        guiCtrl_Prefix.Value   := IniRead("settings.ini", pSection, "Prefix",      "AAPI")
+        guiCtrl_Num.Value      := IniRead("settings.ini", pSection, "LastNumber",  "0")
+        guiCtrl_Suffix.Value   := IniRead("settings.ini", pSection, "Suffix",      "S")
+        guiCtrl_DigitLen.Value := IniRead("settings.ini", pSection, "DigitLength", "7")
+        UpdatePreview()
+    }
+
+    ; --- Switch Profile dropdown handler ---
+    SwitchProfile(*) {
+        global active_profile
+        active_profile := ddProfile.Text
+        IniWrite(active_profile, "settings.ini", "Settings", "ActiveProfile")
+        LoadProfileIntoGui(active_profile)
+    }
+
+    ; --- New Profile button ---
+    NewProfile(*) {
+        global active_profile
+        newName := InputBox("Enter a name for the new profile:", "New Profile", "w300 h120").Value
+        if (newName == "" || newName == 0)
+            return
+        ; Check duplicate
+        pList := GetProfileList()
+        for p in pList {
+            if (p == newName) {
+                MsgBox("Profile '" . newName . "' ay mayroon na!", "Babala", 48)
+                return
+            }
+        }
+        ; Save new profile with current GUI values as starting point
+        SaveProfileSettings(newName, guiCtrl_Prefix.Value, 0, guiCtrl_Suffix.Value, 7)
+        ; Refresh dropdown
+        newList := GetProfileList()
+        ddProfile.Delete()
+        for p in newList
+            ddProfile.Add([p])
+        ; Select new profile
+        for i, p in newList {
+            if (p == newName) {
+                ddProfile.Value := i
+                break
+            }
+        }
+        active_profile := newName
+        IniWrite(active_profile, "settings.ini", "Settings", "ActiveProfile")
+        LoadProfileIntoGui(active_profile)
+    }
+
+    ; --- Delete Profile button ---
+    DeleteProfile(*) {
+        global active_profile
+        if (ddProfile.Text == "Default") {
+            MsgBox("Hindi pwedeng burahin ang 'Default' profile.", "Babala", 48)
+            return
+        }
+        pName := ddProfile.Text
+        confirm := MsgBox("Sigurado ka bang gusto mong burahin ang profile '" . pName . "'?", "Confirm Delete", "YesNo 48")
+        if (confirm != "Yes")
+            return
+        try IniDelete("settings.ini", "Profile_" . pName)
+        ; Switch back to Default
+        active_profile := "Default"
+        IniWrite(active_profile, "settings.ini", "Settings", "ActiveProfile")
+        ; Refresh dropdown
+        newList := GetProfileList()
+        ddProfile.Delete()
+        for p in newList
+            ddProfile.Add([p])
+        ddProfile.Value := 1
+        LoadProfileIntoGui("Default")
+    }
+
+    ; --- Tab 2 internal functions (UNCHANGED) ---
 
     BuildHotkeyString() {
         modMap := Map(
@@ -432,21 +577,16 @@ LaunchGUI() {
             return
         rawKey := CtrlObj.GetText(RowNumber, 2)
         ParseHotkeyToDropdowns(rawKey)
-        ; Multi-line: unescape \n back to actual newlines for display
         storedTxt := CtrlObj.GetText(RowNumber, 3)
         editTxt.Value := StrReplace(storedTxt, "\n", "`n")
     }
 
-    ; --- Hotkey Conflict Checker ---
-    ; Returns a conflict message string, or "" if clear
     CheckConflict(newKey, excludeRow := 0) {
         global reservedHotkeys
-        ; Check against reserved system hotkeys
         for rk in reservedHotkeys {
             if (newKey = rk)
                 return "'" . newKey . "' ay reserved ng KeyTap Pro system hotkey!"
         }
-        ; Check against existing rows in ListView (skip excludeRow = row being updated)
         Loop LV.GetCount() {
             if (A_Index == excludeRow)
                 continue
@@ -461,10 +601,7 @@ LaunchGUI() {
             MsgBox("Paki-sulat muna ang Text to Output!", "Babala", 48)
             return
         }
-
         newKey := BuildHotkeyString()
-
-        ; Check kung may existing row na may same key (for update)
         rowToUpdate := 0
         Loop LV.GetCount() {
             if (LV.GetText(A_Index, 2) = newKey) {
@@ -472,25 +609,19 @@ LaunchGUI() {
                 break
             }
         }
-
-        ; Conflict check (exclude current row if updating)
         conflictMsg := CheckConflict(newKey, rowToUpdate)
         if (conflictMsg != "") {
             MsgBox("⚠️ Hotkey Conflict Detected!`n`n" . conflictMsg . "`n`nPiliin ang ibang key combination.", "Conflict!", 48)
             return
         }
-
-        ; Multi-line: store newlines as \n literal so it fits one ListView cell
         storedTxt := StrReplace(editTxt.Value, "`n", "\n")
         storedTxt := StrReplace(storedTxt, "`r", "")
-
         if (rowToUpdate > 0) {
             existingStatus := LV.GetText(rowToUpdate, 1)
             LV.Modify(rowToUpdate, , existingStatus, newKey, storedTxt)
         } else {
             LV.Add(, "✅ ON", newKey, storedTxt)
         }
-
         editTxt.Value := ""
         ddModifier.Value := 1
         ddKey.Value := 1
@@ -517,14 +648,12 @@ LaunchGUI() {
         currentStatus := LV.GetText(selectedRow, 1)
         rawKey := LV.GetText(selectedRow, 2)
         hkTxt  := LV.GetText(selectedRow, 3)
-
         if (currentStatus == "✅ ON") {
             LV.Modify(selectedRow, , "⛔ OFF", rawKey, hkTxt)
             try Hotkey(rawKey, "Off")
         } else {
             LV.Modify(selectedRow, , "✅ ON", rawKey, hkTxt)
             try {
-                ; Unescape \n back to real newlines for SendInput
                 realTxt := StrReplace(hkTxt, "\n", "`n")
                 boundFunc := CreateHotkeyFunc(realTxt)
                 Hotkey(rawKey, boundFunc, "On")
@@ -534,7 +663,6 @@ LaunchGUI() {
         }
     }
 
-    ; --- Move Row Up ---
     MoveRowUp(*) {
         selectedRow := LV.GetNext()
         if (selectedRow <= 1) {
@@ -542,11 +670,9 @@ LaunchGUI() {
                 MsgBox("Pumili muna ng row.", "Babala", 48)
             return
         }
-        ; Swap in hotkeyList (use unfiltered index by matching key)
         SwapListViewRows(selectedRow, selectedRow - 1)
     }
 
-    ; --- Move Row Down ---
     MoveRowDown(*) {
         selectedRow := LV.GetNext()
         if (selectedRow == 0) {
@@ -558,58 +684,58 @@ LaunchGUI() {
         SwapListViewRows(selectedRow, selectedRow + 1)
     }
 
-    ; Helper: swap two rows in ListView and re-select the moved row
     SwapListViewRows(rowA, rowB) {
-        ; Read both rows
         statusA := LV.GetText(rowA, 1)
         keyA    := LV.GetText(rowA, 2)
         txtA    := LV.GetText(rowA, 3)
-        isOnA   := (statusA == "✅ ON")
-
         statusB := LV.GetText(rowB, 1)
         keyB    := LV.GetText(rowB, 2)
         txtB    := LV.GetText(rowB, 3)
-        isOnB   := (statusB == "✅ ON")
-
-        ; Write B's data into rowA
         LV.Modify(rowA, , statusB, keyB, txtB)
-        ; Write A's data into rowB
         LV.Modify(rowB, , statusA, keyA, txtA)
-
-        ; Re-select rowB (where the moved item landed)
         LV.Modify(rowA, "-Select")
         LV.Modify(rowB, "+Select +Focus")
     }
 
+    ; --- Save All Settings ---
     SaveSettings(*) {
-        global prefix, current_num, suffix, hotkeyList
+        global prefix, current_num, suffix, digit_length, active_profile, hotkeyList
 
+        ; Validate digit length
+        dlen := Number(guiCtrl_DigitLen.Value)
+        if (guiCtrl_DigitLen.Value == "" || dlen < 1) {
+            MsgBox("Digit Length ay dapat 1 o higit pa!", "Error", 48)
+            return
+        }
         if (guiCtrl_Num.Value == "") {
             MsgBox("'Next Number' cannot be empty!", "Error", 48)
             return
         }
 
-        prefix      := guiCtrl_Prefix.Value
-        current_num := Format("{:05}", Number(guiCtrl_Num.Value))
-        suffix      := guiCtrl_Suffix.Value
+        ; Update globals
+        prefix       := guiCtrl_Prefix.Value
+        current_num  := Number(guiCtrl_Num.Value)
+        suffix       := guiCtrl_Suffix.Value
+        digit_length := dlen
+        active_profile := ddProfile.Text
 
-        IniWrite(prefix, "settings.ini", "Settings", "Prefix")
-        IniWrite(Number(guiCtrl_Num.Value), "settings.ini", "Sequence", "LastNumber")
-        IniWrite(suffix, "settings.ini", "Settings", "Suffix")
+        ; Save active profile name
+        IniWrite(active_profile, "settings.ini", "Settings", "ActiveProfile")
 
+        ; Save current profile data
+        SaveProfileSettings(active_profile, prefix, current_num, suffix, digit_length)
+
+        ; Save hotkeys (unchanged logic)
         try IniDelete("settings.ini", "Hotkeys")
         try IniDelete("settings.ini", "HotkeyState")
 
         hotkeyList := []
         Loop LV.GetCount() {
-            hKey   := LV.GetText(A_Index, 2)
-            hTxt   := LV.GetText(A_Index, 3)
-            hState := LV.GetText(A_Index, 1)
+            hKey      := LV.GetText(A_Index, 2)
+            hTxt      := LV.GetText(A_Index, 3)
+            hState    := LV.GetText(A_Index, 1)
             isEnabled := (hState == "✅ ON")
-
-            ; Unescape \n to real newlines for SendInput when registering
-            realTxt := StrReplace(hTxt, "\n", "`n")
-
+            realTxt   := StrReplace(hTxt, "\n", "`n")
             IniWrite(hTxt, "settings.ini", "Hotkeys", hKey)
             IniWrite(isEnabled ? "1" : "0", "settings.ini", "HotkeyState", hKey)
             hotkeyList.Push({key: hKey, txt: realTxt, enabled: isEnabled})

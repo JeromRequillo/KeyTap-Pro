@@ -2,7 +2,7 @@
 ![Usage](https://img.shields.io/badge/Usage-Internal_Tool-orange)
 ![Status](https://img.shields.io/badge/Status-In_Production-success)
 ![Target](https://img.shields.io/badge/Target-Non--Technical_Users-blueviolet)
-# 🎯 KeyTap Pro v4.4.0
+# 🎯 KeyTap Pro
 
 KeyTap Pro is an open-source, fully portable workflow automation suite built using **AutoHotkey v2**. It provides an intuitive graphical interface designed to help users streamline repetitive typing, automate sequential indexing, and perform instant financial calculations on the fly without ever touching a single line of code.
 

@@ -71,7 +71,7 @@ This project showcases how lightweight scripting frameworks can be turned into r
 As this tool is intended for deployment in professional workstation environments, the following safety measures are implemented:
 *   **Zero External Connectivity:** KeyTap Pro operates entirely offline. It does not send, receive, or log data to any external servers or cloud services, ensuring total data privacy.
 *   **Input Privacy:** The software does not function as a keylogger; text macros and sequence increments are only triggered by explicit user hotkey inputs.
-*   **Open Source Transparency:** The full source code is provided in the `src/` directory for security auditing and verification.
+*   **Open Source Transparency:** The full source code is provided in the directory for security auditing and verification.
 
 ---
 
@@ -80,9 +80,9 @@ As this tool is intended for deployment in professional workstation environments
 This project is licensed under the **MIT License**. 
 
 You are free to:
-*   **Use** the software for personal or commercial purposes[cite: 1].
-*   **Modify** the source code to fit your specific internal workflow[cite: 1].
-*   **Distribute** the compiled executable within your organization[cite: 1].
+*   **Use** the software for personal or commercial purposes.
+*   **Modify** the source code to fit your specific internal workflow.
+*   **Distribute** the compiled executable within your organization.
 
 *Disclaimer: The developer is not responsible for any data loss or errors resulting from the misuse of the automation features. Always verify output during initial setup.*
 

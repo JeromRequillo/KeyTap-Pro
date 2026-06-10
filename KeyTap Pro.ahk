@@ -1,5 +1,5 @@
-;@Ahk2Exe-SetFileVersion 4.4.0.0
-;@Ahk2Exe-SetProductVersion 4.4.0.0
+;@Ahk2Exe-SetFileVersion 4.5.0.0
+;@Ahk2Exe-SetProductVersion 4.5.0.0
 ;@Ahk2Exe-SetCompanyName Jerom Requillo
 ;@Ahk2Exe-SetDescription KeyTap Pro - Workflow Automation Suite
 ;@Ahk2Exe-SetCopyright Copyright (C) 2026 Jerom Requillo. All rights reserved.
@@ -8,7 +8,7 @@
 #SingleInstance Force
 
 ; --- SYSTEM TRAY CONFIGURATION ---
-A_IconTip := "🎯 KeyTap Pro v4.4"
+A_IconTip := "🎯 KeyTap Pro v4.5"
 TrayRecalcMenu()
 
 ; =========================================================
@@ -32,6 +32,10 @@ global sysHK_Vat      := "!v"
 global sysHK_Discount := "!d"
 global sysHK_Manager  := "!F10"
 
+; Folder Launcher globals
+global folderLauncherList := []   ; array of {path, label, hotkey, enabled}
+global activeFolderHotkeys := Map()
+
 ; Active function refs for system hotkeys (so we can re-register)
 global sysFunc_Invoice  := ""
 global sysFunc_Vat      := ""
@@ -44,6 +48,7 @@ global sysFunc_Manager  := ""
 LoadSettings()
 RegisterSystemHotkeys()
 RegisterCustomHotkeys()
+RegisterFolderHotkeys()
 ; Register tray icon click handler at startup
 OnMessage(0x404, OnTrayIcon)
 return
@@ -61,7 +66,6 @@ TrayRecalcMenu() {
 }
 
 ; Tray icon message handler
-; lParam values: 0x201=LClick, 0x202=LUp, 0x203=DblClick, 0x204=RClick
 OnTrayIcon(wParam, lParam, msg, hwnd) {
     if (lParam = 0x203) {  ; WM_LBUTTONDBLCLK
         LaunchGUI()
@@ -75,6 +79,7 @@ OnTrayIcon(wParam, lParam, msg, hwnd) {
 LoadSettings() {
     global current_num, prefix, suffix, digit_length, vat_rate, discount_rate, vat_mode
     global active_profile, hotkeyList, sysHK_Invoice, sysHK_Vat, sysHK_Discount, sysHK_Manager
+    global folderLauncherList
 
     active_profile := IniRead("settings.ini", "Settings", "ActiveProfile", "Default")
 
@@ -121,6 +126,28 @@ LoadSettings() {
     } catch {
         hotkeyList := [{key: "!S", txt: "SAMPLE TXT", enabled: true}]
     }
+
+    ; --- Folder Launcher entries ---
+    folderLauncherList := []
+    try {
+        flSection := IniRead("settings.ini", "FolderLauncher")
+        Loop Parse, flSection, "`n", "`r" {
+            if (A_LoopField == "")
+                continue
+            pos := InStr(A_LoopField, "=")
+            if (pos > 0) {
+                flIdx   := SubStr(A_LoopField, 1, pos - 1)
+                flVal   := SubStr(A_LoopField, pos + 1)
+                ; format stored: label|path|hotkey|enabled
+                parts   := StrSplit(flVal, "|")
+                flLabel   := (parts.Length >= 1) ? parts[1] : ""
+                flPath    := (parts.Length >= 2) ? parts[2] : ""
+                flHotkey  := (parts.Length >= 3) ? parts[3] : ""
+                flEnabled := (parts.Length >= 4) ? (parts[4] == "1") : true
+                folderLauncherList.Push({label: flLabel, path: flPath, hotkey: flHotkey, enabled: flEnabled})
+            }
+        }
+    }
 }
 
 ; =========================================================
@@ -165,6 +192,83 @@ RegisterSystemHotkeys() {
 }
 
 ; =========================================================
+; REGISTER FOLDER HOTKEYS
+; =========================================================
+RegisterFolderHotkeys() {
+    global folderLauncherList, activeFolderHotkeys
+
+    ; First pass: turn off ALL previously registered folder hotkeys
+    for hkStr, _ in activeFolderHotkeys
+        try Hotkey(hkStr, "Off")
+
+    ; Also turn off hotkeys for ALL current entries (catches hotkey changes)
+    for fl in folderLauncherList {
+        if (fl.hotkey != "")
+            try Hotkey(fl.hotkey, "Off")
+    }
+
+    activeFolderHotkeys := Map()
+
+    ; Second pass: register only enabled entries with a valid hotkey
+    for fl in folderLauncherList {
+        if (fl.hotkey == "" || !fl.enabled)
+            continue
+        if (activeFolderHotkeys.Has(fl.hotkey))
+            continue  ; skip duplicate hotkeys — first entry wins
+        flPath := fl.path
+        try {
+            boundFunc := CreateFolderFunc(flPath)
+            Hotkey(fl.hotkey, boundFunc, "On")
+            activeFolderHotkeys[fl.hotkey] := boundFunc
+        }
+    }
+}
+
+CreateFolderFunc(folderPath) {
+    return (*) => OpenFolder(folderPath)
+}
+
+OpenFolder(folderPath) {
+    if (!DirExist(folderPath)) {
+        ToolTip("Folder not found: " . folderPath)
+        SetTimer(() => ToolTip(), -3000)
+        return
+    }
+    
+    
+    if (SubStr(folderPath, -1) != "\")
+        folderPath .= "\"
+        
+    fileCount := 0
+    
+    
+    Loop Files, folderPath . "*.*", "F" {
+        try {
+             
+            
+            Run('"' . A_LoopFilePath . '"')
+            fileCount++
+            
+            
+            Sleep(1000) 
+        } catch {
+            continue
+        }
+    }
+    
+    
+    if (fileCount > 0) {
+        
+        SoundBeep(1000, 300)
+        SoundBeep(1200, 400)
+        ToolTip("🚀 Completed: " . fileCount . " files are now active.")
+    } else {
+        ToolTip("📂 Folder is empty (No files found): " . folderPath)
+    }
+    SetTimer(() => ToolTip(), -2500)
+}
+
+; =========================================================
 ; SYSTEM HOTKEY ACTIONS
 ; =========================================================
 DoInvoiceHotkey() {
@@ -190,7 +294,6 @@ DoVatHotkey() {
         return
     }
 
-    ; Process multi-line: each line separately
     lines      := StrSplit(A_Clipboard, "`n", "`r")
     resultLines := []
     hasError   := false
@@ -228,7 +331,6 @@ DoVatHotkey() {
             finalText .= "`n"
     }
 
-    ; Remove trailing newline if original had none
     if (SubStr(A_Clipboard, -1) != "`n")
         finalText := RTrim(finalText, "`n")
 
@@ -395,18 +497,19 @@ LaunchGUI() {
     global mainGui, current_num, prefix, suffix, digit_length, vat_rate
     global active_profile, hotkeyList, sysHK_Invoice, sysHK_Vat, sysHK_Manager
     global discount_rate, vat_mode, sysHK_Discount
+    global folderLauncherList
 
     LoadSettings()
 
     if (mainGui != "")
         mainGui.Destroy()
 
-    mainGui := Gui("-MaximizeBox", "🎯 KeyTap Pro v4.4")
+    mainGui := Gui("-MaximizeBox", "🎯 KeyTap Pro v4.5")
     mainGui.OnEvent("Close", (*) => mainGui.Destroy())
     mainGui.SetFont("s10", "Segoe UI")
 
     tabMenu := mainGui.Add("Tab3", "x10 y10 w660 h560",
-        ["Invoice Config", "Custom Text Hotkeys", "VAT Calculator", "About"])
+        ["Invoice Config", "Custom Text Hotkeys", "VAT Calculator", "Folder Launcher", "About"])
 
     modifierChoices := ["Alt (!)", "Ctrl (^)", "Shift (+)", "Ctrl+Alt (^!)", "Alt+Shift (!+)", "Ctrl+Shift (^+)"]
     modSymMap := Map(
@@ -450,7 +553,6 @@ LaunchGUI() {
     ; =========================================================
     tabMenu.UseTab(1)
 
-    ; ── HEADER ───────────────────────────────────────────────
     mainGui.SetFont("bold s13", "Segoe UI")
     mainGui.Add("Text", "x20 y48 w450 h28 c0x0055AA", "🧾 Invoice Number Generator")
     mainGui.SetFont("s9 Norm cGray", "Segoe UI")
@@ -458,7 +560,6 @@ LaunchGUI() {
         "Configure the format of your invoice number and assign a hotkey to trigger it automatically.")
     mainGui.SetFont("s10 Norm cDefault", "Segoe UI")
 
-    ; ── SECTION 1: PROFILE MANAGEMENT ────────────────────────
     mainGui.Add("GroupBox", "x15 y97 w305 h75", "  👤 Profile")
 
     mainGui.SetFont("s9 Norm", "Segoe UI")
@@ -482,7 +583,6 @@ LaunchGUI() {
     btnDelProfile.OnEvent("Click", DeleteProfile)
     ddProfile.OnEvent("Change", SwitchProfile)
 
-    ; ── SECTION 2: INVOICE FORMAT ────────────────────────────
     mainGui.Add("GroupBox", "x330 y97 w305 h75", "  🔢 Invoice Format")
 
     mainGui.SetFont("s9 Norm", "Segoe UI")
@@ -501,7 +601,6 @@ LaunchGUI() {
     guiCtrl_Suffix.OnEvent("Change", UpdatePreview)
     guiCtrl_DigitLen.OnEvent("Change", UpdatePreview)
 
-    ; ── SECTION 3: SEQUENCE NUMBER ───────────────────────────
     mainGui.Add("GroupBox", "x15 y182 w305 h80", "  🔄 Sequence Number")
 
     mainGui.SetFont("s9 Norm", "Segoe UI")
@@ -517,7 +616,6 @@ LaunchGUI() {
     guiCtrl_Num.OnEvent("Change", UpdatePreview)
     btnReset.OnEvent("Click", (*) => (guiCtrl_Num.Value := "0", UpdatePreview()))
 
-    ; ── SECTION 4: HOTKEY CONFIG ─────────────────────────────
     mainGui.Add("GroupBox", "x330 y182 w305 h80", "  ⌨ Invoice Hotkey")
 
     mainGui.SetFont("s9 Norm", "Segoe UI")
@@ -538,7 +636,6 @@ LaunchGUI() {
     ddInvMod.OnEvent("Change", (*) => UpdateInvHKLabel())
     ddInvKey.OnEvent("Change", (*) => UpdateInvHKLabel())
 
-    ; ── LIVE PREVIEW BOX ─────────────────────────────────────
     mainGui.Add("GroupBox", "x15 y272 w620 h55", "  👁 Live Preview")
     mainGui.SetFont("bold s14 c0x005500", "Segoe UI")
     current_preview := GenerateInvoice()
@@ -546,7 +643,6 @@ LaunchGUI() {
         "x25 y288 w600 h30 Center +BackgroundTrans", current_preview)
     mainGui.SetFont("s10 Norm cDefault", "Segoe UI")
 
-    ; ── HOW TO USE ────────────────────────────────────────────
     mainGui.Add("GroupBox", "x15 y337 w305 h215", "  💡 How to Use")
     mainGui.SetFont("s9 Norm", "Segoe UI")
     howToTxt := "
@@ -566,7 +662,6 @@ Step 6.  Go to any application — spreadsheet, browser, text field — and pres
     mainGui.Add("Edit", "x25 y355 w285 h188 +ReadOnly +Wrap -WantReturn +VScroll", howToTxt)
     mainGui.SetFont("s10 Norm cDefault", "Segoe UI")
 
-    ; ── IMPORTANT NOTES ──────────────────────────────────────
     mainGui.Add("GroupBox", "x330 y337 w305 h215", "  📌 Important Notes")
     mainGui.SetFont("s9 Norm", "Segoe UI")
     notesTxt := "
@@ -590,12 +685,11 @@ The current sequence number is automatically saved to settings.ini after every h
     mainGui.Add("Edit", "x340 y355 w285 h188 +ReadOnly +Wrap -WantReturn +VScroll", notesTxt)
     mainGui.SetFont("s10 Norm cDefault", "Segoe UI")
 
-        ; =========================================================
+    ; =========================================================
     ; TAB 2: CUSTOM TEXT HOTKEYS
     ; =========================================================
     tabMenu.UseTab(2)
 
-    ; ── HEADER ───────────────────────────────────────────────
     mainGui.SetFont("bold s13", "Segoe UI")
     mainGui.Add("Text", "x20 y48 w500 h28 c0x0055AA", "⌨ Custom Text Hotkeys")
     mainGui.SetFont("s9 Norm cGray", "Segoe UI")
@@ -603,7 +697,6 @@ The current sequence number is automatically saved to settings.ini after every h
         "Assign a keyboard shortcut to any text: company names, addresses, email templates, account numbers, or any phrase.")
     mainGui.SetFont("s10 Norm cDefault", "Segoe UI")
 
-    ; ── HOTKEY LIST ──────────────────────────────────────────
     mainGui.Add("GroupBox", "x15 y97 w620 h215", "  📋 Hotkey List")
 
     mainGui.SetFont("s9 Norm", "Segoe UI")
@@ -631,12 +724,10 @@ The current sequence number is automatically saved to settings.ini after every h
     editSearch.OnEvent("Change", (*) => RefreshListView(editSearch.Value))
     btnClearSearch.OnEvent("Click", (*) => (editSearch.Value := "", RefreshListView()))
 
-    ; ── ADD / EDIT HOTKEY ────────────────────────────────────
     mainGui.Add("GroupBox", "x15 y322 w620 h130", "  ✏ Add or Edit a Hotkey")
 
     mainGui.SetFont("s9 Norm", "Segoe UI")
 
-    ; Row 1: Modifier + Key + label
     mainGui.Add("Text", "x28 y343 w65 h24 +0x200", "Modifier:")
     ddModifier := mainGui.Add("DropDownList", "x96 y341 w130 h120", modifierChoices)
     ddModifier.Value := 1
@@ -652,11 +743,9 @@ The current sequence number is automatically saved to settings.ini after every h
         "Select Key Combination Here.")
     mainGui.SetFont("s9 Norm cDefault", "Segoe UI")
 
-    ; Row 2: Text output
     mainGui.Add("Text", "x28 y372 w65 h24 +0x200", "Text Output:")
     editTxt := mainGui.Add("Edit", "x96 y370 w520 h55 +Multi +WantReturn +VScroll")
 
-    ; ── ACTION BUTTONS ───────────────────────────────────────
     mainGui.Add("GroupBox", "x15 y462 w620 h88", "  🎛 Actions")
 
     btnAdd      := mainGui.Add("Button", "x28 y480 w145 h30", "➕ Add / Update")
@@ -677,12 +766,11 @@ The current sequence number is automatically saved to settings.ini after every h
     btnMoveDown.OnEvent("Click", MoveRowDown)
     LV.OnEvent("Click", SelectHotkey)
 
-        ; =========================================================
-    ; TAB 3: VAT CALCULATOR  (REDESIGNED - WIDER)
+    ; =========================================================
+    ; TAB 3: VAT CALCULATOR
     ; =========================================================
     tabMenu.UseTab(3)
 
-    ; ── HEADER ───────────────────────────────────────────────
     mainGui.SetFont("bold s12", "Segoe UI")
     mainGui.Add("Text", "x20 y48 w500 h26 c0x0055AA", "💰 VAT & Discount Tool")
     mainGui.SetFont("s9 Norm cGray", "Segoe UI")
@@ -690,7 +778,6 @@ The current sequence number is automatically saved to settings.ini after every h
         "Configure your VAT rate, discount rate, and their respective hotkeys below.")
     mainGui.SetFont("s10 Norm cDefault", "Segoe UI")
 
-    ; ── SECTION 1: VAT SETTINGS ──────────────────────────────
     mainGui.Add("GroupBox", "x15 y95 w305 h190", "  📋 VAT Configuration")
 
     mainGui.SetFont("s9 Norm", "Segoe UI")
@@ -699,14 +786,12 @@ The current sequence number is automatically saved to settings.ini after every h
     guiCtrl_VatProfileLabel := mainGui.Add("Text", "x135 y118 w170 h20", active_profile)
     mainGui.SetFont("s9 Norm cDefault", "Segoe UI")
 
-    ; VAT Rate row
     mainGui.Add("Text", "x28 y148 w80 h22 +0x200", "VAT Rate:")
     vatPresets := ["12% (Standard)", "5% (Reduced)", "0% (Zero-rated)", "Custom..."]
     ddVatPreset    := mainGui.Add("DropDownList", "x110 y146 w120 h200", vatPresets)
     guiCtrl_VatRate := mainGui.Add("Edit", "x236 y146 w48 h22", Format("{:.2f}", vat_rate))
     mainGui.Add("Text", "x288 y148 w15 h20", "%")
 
-    ; VAT Mode - radio buttons (clearer than two small buttons)
     mainGui.Add("Text", "x28 y178 w80 h22 +0x200", "Mode:")
     rbDeduct := mainGui.Add("Radio", "x110 y178 w100 h22", "⬇ Deduct VAT")
     rbAdd     := mainGui.Add("Radio", "x215 y178 w100 h22", "⬆ Add VAT")
@@ -716,10 +801,8 @@ The current sequence number is automatically saved to settings.ini after every h
         rbDeduct.Value := 1
     }
 
-    ; Live preview
     guiCtrl_VatPreview := mainGui.Add("Text", "x28 y207 w285 h18 cBlue", "")
 
-    ; VAT Hotkey row
     mainGui.Add("Text", "x28 y233 w80 h22 +0x200", "Hotkey:")
     ddVatMod := mainGui.Add("DropDownList", "x110 y231 w108 h200", modifierChoices)
     ddVatKey := mainGui.Add("DropDownList", "x223 y231 w65 h300", keyChoices)
@@ -729,20 +812,16 @@ The current sequence number is automatically saved to settings.ini after every h
     SetModDD(ddVatMod, parsedVat.modLabel)
     SetKeyDD(ddVatKey, parsedVat.keyStr)
 
-    ; ── SECTION 2: DISCOUNT SETTINGS ─────────────────────────
     mainGui.Add("GroupBox", "x330 y95 w305 h190", "  🏷 Discount Settings")
 
     mainGui.SetFont("s9 Norm", "Segoe UI")
 
-    ; Discount rate row
     mainGui.Add("Text", "x345 y118 w100 h22 +0x200", "Discount Rate:")
     guiCtrl_DiscRate := mainGui.Add("Edit", "x450 y118 w60 h22", Format("{:.2f}", discount_rate))
     mainGui.Add("Text", "x514 y118 w15 h22 +0x200", "%")
 
-    ; Discount preview
     guiCtrl_DiscPreview := mainGui.Add("Text", "x345 y148 w280 h18 cBlue", "")
 
-    ; Quick preset discount buttons
     mainGui.Add("Text", "x345 y172 w60 h22 +0x200", "Quick set:")
     btn5pct  := mainGui.Add("Button", "x410 y170 w40 h24", "5%")
     btn10pct := mainGui.Add("Button", "x454 y170 w40 h24", "10%")
@@ -753,7 +832,6 @@ The current sequence number is automatically saved to settings.ini after every h
     btn15pct.OnEvent("Click", (*) => (guiCtrl_DiscRate.Value := "15.00", UpdateDiscPreview()))
     btn20pct.OnEvent("Click", (*) => (guiCtrl_DiscRate.Value := "20.00", UpdateDiscPreview()))
 
-    ; Discount Hotkey row
     mainGui.Add("Text", "x345 y204 w65 h22 +0x200", "Hotkey:")
     ddDiscMod := mainGui.Add("DropDownList", "x415 y202 w108 h200", modifierChoices)
     ddDiscKey := mainGui.Add("DropDownList", "x527 y202 w65 h300", keyChoices)
@@ -763,16 +841,13 @@ The current sequence number is automatically saved to settings.ini after every h
     SetModDD(ddDiscMod, parsedDisc.modLabel)
     SetKeyDD(ddDiscKey, parsedDisc.keyStr)
 
-    ; Multi-line tip
     mainGui.SetFont("s8 cGray Italic", "Segoe UI")
     mainGui.Add("Text", "x345 y252 w280 h30",
         "This hotkey operates on highlighted text in any application.")
     mainGui.SetFont("s9 Norm cDefault", "Segoe UI")
 
-    ; ── SECTION 3: IN-APP CALCULATOR ─────────────────────────
     mainGui.Add("GroupBox", "x15 y295 w620 h235", "  🧮 Built-In Calculator")
 
-    ; --- Left column: Inputs ---
     mainGui.SetFont("bold s9 c0x333333", "Segoe UI")
     mainGui.Add("Text", "x28 y318 w280 h18", "ENTER VALUES")
     mainGui.SetFont("s9 Norm", "Segoe UI")
@@ -802,14 +877,12 @@ The current sequence number is automatically saved to settings.ini after every h
     btnCalculate := mainGui.Add("Button", "x28 y495 w120 h30", "↺ Recalculate")
     btnClearCalc := mainGui.Add("Button", "x155 y495 w70 h30", "🗑 Clear")
 
-    ; --- Right column: Results ---
-    mainGui.Add("Text", "x320 y295 w2 h235 +0x10")  ; vertical divider
+    mainGui.Add("Text", "x320 y295 w2 h235 +0x10")
 
     mainGui.SetFont("bold s9 c0x333333", "Segoe UI")
     mainGui.Add("Text", "x335 y318 w290 h18", "COMPUTED BREAKDOWN")
     mainGui.SetFont("s9 Norm", "Segoe UI")
 
-    ; Result rows - label + value pairs, well-spaced
     mainGui.Add("Text", "x335 y342 w130 h22 +0x200", "Gross Amount:")
     calcGrossLabel := mainGui.Add("Text", "x475 y342 w155 h22 +0x202", "—")
 
@@ -835,8 +908,6 @@ The current sequence number is automatically saved to settings.ini after every h
     btnCopyAll := mainGui.Add("Button", "x485 y488 w148 h28", "📋 Copy Full Breakdown")
 
     calcNetValue := ""
-
-    ; ── HELPER FUNCTIONS ─────────────────────────────────────
 
     guiCtrl_VatModeValue := vat_mode
 
@@ -942,8 +1013,6 @@ The current sequence number is automatically saved to settings.ini after every h
 
     guiCtrl_DiscRate.OnEvent("Change", (*) => UpdateDiscPreview())
 
-    ; ── CALCULATOR LOGIC ──────────────────────────────────────
-
     FmtNum(n) {
         s       := Format("{:.2f}", n)
         dotPos  := InStr(s, ".")
@@ -1045,7 +1114,6 @@ The current sequence number is automatically saved to settings.ini after every h
     btnCalculate.OnEvent("Click", DoCalculate)
     btnClearCalc.OnEvent("Click", OnClearCalc)
 
-    ; Live computation — recalculate on any input change
     calcInput.OnEvent("Change",     (*) => DoCalculate())
     calcDiscInput.OnEvent("Change", (*) => DoCalculate())
     calcVatInput.OnEvent("Change",  (*) => DoCalculate())
@@ -1082,18 +1150,247 @@ The current sequence number is automatically saved to settings.ini after every h
     }
     btnCopyAll.OnEvent("Click", OnCopyAll)
 
-        ; =========================================================
-    ; TAB 4: ABOUT
+    ; =========================================================
+    ; TAB 4: FOLDER LAUNCHER
     ; =========================================================
     tabMenu.UseTab(4)
 
-    ; ── APP IDENTITY  (y48, h118) ────────────────────────────
+    ; ── HEADER ───────────────────────────────────────────────
+    mainGui.SetFont("bold s13", "Segoe UI")
+    mainGui.Add("Text", "x20 y48 w500 h28 c0x0055AA", "📂 Folder Launcher")
+    mainGui.SetFont("s9 Norm cGray", "Segoe UI")
+    mainGui.Add("Text", "x20 y76 w630 h18",
+        "Register folder locations and open them instantly with a hotkey — or use the Open button directly from this panel.")
+    mainGui.SetFont("s10 Norm cDefault", "Segoe UI")
+
+    ; ── FOLDER LIST ──────────────────────────────────────────
+    mainGui.Add("GroupBox", "x15 y97 w620 h180", "  📋 Registered Folders")
+
+    FL_LV := mainGui.Add("ListView", "x28 y115 w592 h150 +Grid -Multi",
+        ["Status", "Label / Description", "Folder Path", "Hotkey"])
+    FL_LV.ModifyCol(1, 55)
+    FL_LV.ModifyCol(2, 130)
+    FL_LV.ModifyCol(3, 300)
+    FL_LV.ModifyCol(4, 85)
+
+    RefreshFolderLV() {
+        FL_LV.Delete()
+        for fl in folderLauncherList {
+            existsTxt := DirExist(fl.path) ? "✅ OK" : "⚠ Missing"
+            FL_LV.Add(, existsTxt, fl.label, fl.path, fl.hotkey)
+        }
+    }
+    RefreshFolderLV()
+
+    ; ── ADD / EDIT FOLDER ────────────────────────────────────
+    mainGui.Add("GroupBox", "x15 y285 w620 h135", "  ✏ Add or Edit a Folder Entry")
+
+    mainGui.SetFont("s9 Norm", "Segoe UI")
+
+    ; Row 1: Label
+    mainGui.Add("Text", "x28 y306 w80 h24 +0x200", "Label:")
+    fl_editLabel := mainGui.Add("Edit", "x112 y304 w200 h24")
+    mainGui.SetFont("s8 cGray Italic", "Segoe UI")
+    mainGui.Add("Text", "x318 y308 w305 h18", "Short name for this folder (e.g. Projects, Invoices 2026)")
+    mainGui.SetFont("s9 Norm cDefault", "Segoe UI")
+
+    ; Row 2: Folder path + Browse button
+    mainGui.Add("Text", "x28 y336 w80 h24 +0x200", "Folder Path:")
+    fl_editPath := mainGui.Add("Edit", "x112 y334 w430 h24")
+    btnBrowse := mainGui.Add("Button", "x548 y334 w75 h24", "📁 Browse")
+
+    ; Row 3: Hotkey assignment
+    mainGui.Add("Text", "x28 y366 w80 h24 +0x200", "Hotkey:")
+    ddFlMod := mainGui.Add("DropDownList", "x112 y364 w120 h200", modifierChoices)
+    ddFlMod.Value := 1
+    ddFlKey := mainGui.Add("DropDownList", "x238 y364 w70 h300", keyChoices)
+    ddFlKey.Value := 1
+    mainGui.SetFont("s8 cGray Italic", "Segoe UI")
+    fl_hkLabel := mainGui.Add("Text", "x315 y368 w165 h18 cGray", "Active: none")
+    mainGui.SetFont("s9 Norm cDefault", "Segoe UI")
+    mainGui.Add("Text", "x485 y368 w148 h18 cGray", "(Leave key as-is = no hotkey)")
+    mainGui.SetFont("s10 Norm cDefault", "Segoe UI")
+
+    UpdateFlHKLabel() {
+        sym := modSymMap[ddFlMod.Text]
+        fl_hkLabel.Value := "Active: " . sym . ddFlKey.Text
+    }
+    ddFlMod.OnEvent("Change", (*) => UpdateFlHKLabel())
+    ddFlKey.OnEvent("Change", (*) => UpdateFlHKLabel())
+
+    ; Browse button action
+    DoBrowse(*) {
+        chosen := DirSelect("*" . fl_editPath.Value, 3, "Select a folder to register")
+        if (chosen != "")
+            fl_editPath.Value := chosen
+    }
+    btnBrowse.OnEvent("Click", DoBrowse)
+
+    ; ── ACTION BUTTONS ───────────────────────────────────────
+    mainGui.Add("GroupBox", "x15 y428 w620 h88", "  🎛 Actions")
+
+    btnFlAdd    := mainGui.Add("Button", "x28 y446 w145 h30", "➕ Add / Update")
+    btnFlDel    := mainGui.Add("Button", "x180 y446 w130 h30", "❌ Delete")
+    btnFlToggle := mainGui.Add("Button", "x317 y446 w155 h30", "🔁 Toggle ON / OFF")
+    btnFlOpen   := mainGui.Add("Button", "x480 y446 w150 h30", "📂 Open Selected Now")
+
+    mainGui.SetFont("s8 cGray Italic", "Segoe UI")
+    mainGui.Add("Text", "x28 y482 w600 h28",
+        "Tip: Click any row to load it into the editor. Use [Open Selected Now] to open the folder immediately without a hotkey. Hotkeys are optional — a folder entry without a hotkey can still be opened from this panel. Status shows ⚠ Missing if the folder path no longer exists on disk.")
+    mainGui.SetFont("s10 Norm cDefault", "Segoe UI")
+
+    ; ── HOW TO USE + NOTES ───────────────────────────────────
+    mainGui.Add("GroupBox", "x15 y525 w305 h50", "  💡 Quick Tips")
+    mainGui.SetFont("s8 Norm", "Segoe UI")
+    mainGui.Add("Text", "x28 y542 w285 h30",
+        "You can register network paths (\\server\share), USB drives, or any local folder. Hotkeys are registered globally — they work from any application.")
+    mainGui.SetFont("s10 Norm cDefault", "Segoe UI")
+
+    mainGui.Add("GroupBox", "x330 y525 w305 h50", "  📌 Storage")
+    mainGui.SetFont("s8 Norm", "Segoe UI")
+    mainGui.Add("Text", "x343 y542 w285 h30",
+        "All folder entries are saved to settings.ini under [FolderLauncher]. They reload automatically on next launch.")
+    mainGui.SetFont("s10 Norm cDefault", "Segoe UI")
+
+    ; ── FOLDER LIST CLICK → LOAD INTO EDITOR ─────────────────
+    FL_LV.OnEvent("Click", SelectFolderEntry)
+
+    SelectFolderEntry(CtrlObj, RowNumber) {
+        if (RowNumber == 0)
+            return
+        fl_editLabel.Value := CtrlObj.GetText(RowNumber, 2)
+        fl_editPath.Value  := CtrlObj.GetText(RowNumber, 3)
+        hkStr := CtrlObj.GetText(RowNumber, 4)
+        if (hkStr != "") {
+            parsed := ParseHKString(hkStr)
+            SetModDD(ddFlMod, parsed.modLabel)
+            SetKeyDD(ddFlKey, parsed.keyStr)
+        } else {
+            ddFlMod.Value := 1
+            ddFlKey.Value := 1
+        }
+        UpdateFlHKLabel()
+    }
+
+    ; ── FOLDER ACTIONS ───────────────────────────────────────
+    btnFlAdd.OnEvent("Click", AddUpdateFolder)
+    btnFlDel.OnEvent("Click", DeleteFolder)
+    btnFlToggle.OnEvent("Click", ToggleFolder)
+    btnFlOpen.OnEvent("Click", OpenSelectedFolder)
+
+    AddUpdateFolder(*) {
+        newLabel := Trim(fl_editLabel.Value)
+        newPath  := Trim(fl_editPath.Value)
+        if (newLabel == "") {
+            MsgBox("Please enter a label for this folder entry.", "Required Field", 48)
+            return
+        }
+        if (newPath == "") {
+            MsgBox("Please enter or browse to a folder path.", "Required Field", 48)
+            return
+        }
+        ; Build hotkey string — if key is same as first choice and mod is first, treat as "no hotkey"
+        newHK := modSymMap[ddFlMod.Text] . ddFlKey.Text
+
+        ; Check for hotkey conflict with system/custom hotkeys
+        if (newHK != "") {
+            if (newHK == sysHK_Invoice || newHK == sysHK_Vat || newHK == sysHK_Discount || newHK == sysHK_Manager) {
+                MsgBox("Hotkey Conflict: '" . newHK . "' is already used by a system hotkey. Please choose a different combination.", "Conflict", 48)
+                return
+            }
+            for hk in hotkeyList {
+                if (hk.key == newHK) {
+                    MsgBox("Hotkey Conflict: '" . newHK . "' is already used by a Custom Text Hotkey. Please choose a different combination.", "Conflict", 48)
+                    return
+                }
+            }
+        }
+
+        ; Find existing row by label
+        rowToUpdate := 0
+        Loop FL_LV.GetCount() {
+            if (FL_LV.GetText(A_Index, 2) == newLabel) {
+                rowToUpdate := A_Index
+                break
+            }
+        }
+
+        existsTxt := DirExist(newPath) ? "✅ OK" : "⚠ Missing"
+        if (rowToUpdate > 0) {
+            FL_LV.Modify(rowToUpdate, , existsTxt, newLabel, newPath, newHK)
+        } else {
+            FL_LV.Add(, existsTxt, newLabel, newPath, newHK)
+        }
+
+        fl_editLabel.Value := ""
+        fl_editPath.Value  := ""
+        ddFlMod.Value := 1
+        ddFlKey.Value := 1
+        fl_hkLabel.Value := "Active: none"
+    }
+
+    DeleteFolder(*) {
+        selectedRow := FL_LV.GetNext()
+        if (selectedRow == 0) {
+            MsgBox("Please select a folder entry from the list before deleting.", "No Selection", 48)
+            return
+        }
+        FL_LV.Delete(selectedRow)
+        fl_editLabel.Value := ""
+        fl_editPath.Value  := ""
+        ddFlMod.Value := 1
+        ddFlKey.Value := 1
+        fl_hkLabel.Value := "Active: none"
+    }
+
+    ToggleFolder(*) {
+        selectedRow := FL_LV.GetNext()
+        if (selectedRow == 0) {
+            MsgBox("Please select a folder entry from the list before toggling.", "No Selection", 48)
+            return
+        }
+        currentStatus := FL_LV.GetText(selectedRow, 1)
+        lbl := FL_LV.GetText(selectedRow, 2)
+        pth := FL_LV.GetText(selectedRow, 3)
+        hk  := FL_LV.GetText(selectedRow, 4)
+
+        ; Status col is either "✅ OK", "⚠ Missing", "⛔ OFF"
+        if (InStr(currentStatus, "OFF")) {
+            newStatus := DirExist(pth) ? "✅ OK" : "⚠ Missing"
+        } else {
+            newStatus := "⛔ OFF"
+        }
+        FL_LV.Modify(selectedRow, , newStatus, lbl, pth, hk)
+    }
+
+    OpenSelectedFolder(*) {
+    selectedRow := FL_LV.GetNext()
+    if (selectedRow == 0) {
+        MsgBox("Please select a folder entry from the list first.", "No Selection", 48)
+        return
+    }
+    pth := FL_LV.GetNext() ? FL_LV.GetText(selectedRow, 3) : ""
+    
+    if (!DirExist(pth)) {
+        MsgBox("The folder path does not exist or is not accessible:`n`n" . pth, "Folder Not Found", 48)
+        return
+    }
+    
+    
+    OpenFolder(pth)
+}
+
+    ; =========================================================
+    ; TAB 5: ABOUT
+    ; =========================================================
+    tabMenu.UseTab(5)
+
     mainGui.Add("GroupBox", "x15 y48 w620 h118", "  🎯 About This Application")
     mainGui.SetFont("bold s14 c0x0055AA", "Segoe UI")
-    mainGui.Add("Text", "x30 y68 w380 h30", "🎯 KeyTap Pro  v4.4")
+    mainGui.Add("Text", "x30 y68 w380 h30", "🎯 KeyTap Pro  v4.5")
     mainGui.SetFont("s9 Norm", "Segoe UI")
     mainGui.Add("Text", "x30 y100 w85 h20 +0x200", "Version:")
-    mainGui.Add("Text", "x118 y100 w270 h20", "4.4.0 ")
+    mainGui.Add("Text", "x118 y100 w270 h20", "4.5.0 ")
     mainGui.Add("Text", "x30 y120 w85 h20 +0x200", "Developer:")
     mainGui.Add("Text", "x118 y120 w180 h20", "Jerom Requillo")
     mainGui.Add("Text", "x30 y140 w85 h20 +0x200", "Build Date:")
@@ -1105,7 +1402,6 @@ The current sequence number is automatically saved to settings.ini after every h
         'Repo: <a href="https://github.com/JeromRequillo/KeyTap-Pro">JeromRequillo/KeyTap-Pro</a>')
     mainGui.SetFont("s10 Norm cDefault", "Segoe UI")
 
-    ; ── HOTKEY REFERENCE  (y174, h160, left) ─────────────────
     mainGui.Add("GroupBox", "x15 y174 w305 h160", "  ⌨ Hotkey Reference")
     mainGui.SetFont("s9 Norm", "Segoe UI")
     hkRefTxt := "
@@ -1121,13 +1417,15 @@ Deducts or adds VAT to any highlighted amount in any active application window.
 Discount Hotkey
 Applies the configured discount rate to any highlighted amount. Multiple lines are supported simultaneously.
 
+Folder Hotkeys
+Opens a registered folder in Windows Explorer instantly. Each folder entry can have its own optional hotkey.
+
 Alt + F10  (Fixed — cannot be changed)
 Opens this Manager window from anywhere on the system.
     )"
     mainGui.Add("Edit", "x27 y192 w285 h133 +ReadOnly +Wrap +VScroll -WantReturn", hkRefTxt)
     mainGui.SetFont("s10 Norm cDefault", "Segoe UI")
 
-    ; ── TROUBLESHOOTING  (y174, h160, right) ─────────────────
     mainGui.Add("GroupBox", "x328 y174 w307 h160", "  🛠 Troubleshooting Guide")
     mainGui.SetFont("s9 Norm", "Segoe UI")
     tsTxt := "
@@ -1147,7 +1445,6 @@ Ensure only one instance of the application is running. Exit from the tray menu 
     mainGui.Add("Edit", "x340 y192 w287 h133 +ReadOnly +Wrap +VScroll -WantReturn", tsTxt)
     mainGui.SetFont("s10 Norm cDefault", "Segoe UI")
 
-    ; ── DEPLOYMENT AND PORTABILITY  (y342, h110) ─────────────
     mainGui.Add("GroupBox", "x15 y342 w620 h110", "  📂 Deployment and Portability")
     mainGui.SetFont("s9 Norm", "Segoe UI")
     deployTxt := "
@@ -1161,11 +1458,12 @@ Multiple Profiles are supported within a single installation. Each profile maint
     mainGui.Add("Edit", "x27 y360 w592 h84 +ReadOnly +Wrap +VScroll -WantReturn", deployTxt)
     mainGui.SetFont("s10 Norm cDefault", "Segoe UI")
 
-    ; ── VERSION HISTORY  (y460, h148) ────────────────────────
     mainGui.Add("GroupBox", "x15 y460 w620 h148", "  📝 Version History")
     mainGui.SetFont("s9 Norm", "Segoe UI")
     clTxt := "
     (
+
+v4.5  —  Folder Launcher tab added. Register any number of folder paths with optional global hotkeys. Includes a Browse button, label field, inline Open button, Toggle ON/OFF, and conflict detection against all existing hotkeys. Folder status automatically shows OK or Missing based on disk availability.
 
 v4.4  —  VAT and Discount tab completely redesigned with a wider window layout (680px). GroupBox containers added throughout for visual clarity. Built-in live calculator with a full per-transaction breakdown. Discount hotkey with multi-line support. VAT Add and Deduct mode toggle using radio buttons. Quick-set discount buttons at 5%, 10%, 15%, and 20%. Live peso preview on all rate settings.
 
@@ -1178,7 +1476,7 @@ v4.1  —  Initial public release. Features included auto-invoice number generat
     mainGui.Add("Edit", "x27 y478 w592 h122 +ReadOnly +Wrap +VScroll -WantReturn", clTxt)
     mainGui.SetFont("s10 Norm cDefault", "Segoe UI")
 
-        tabMenu.UseTab()
+    tabMenu.UseTab()
 
     ; --- BOTTOM BUTTONS ---
     mainGui.SetFont("Norm s10", "Segoe UI")
@@ -1318,6 +1616,11 @@ v4.1  —  Initial public release. Features included auto-invoice number generat
             if (LV.GetText(A_Index, 2) == newKey)
                 return "'" . newKey . "' is already in use by row #" . A_Index . " in the hotkey list. Each hotkey must be unique."
         }
+        ; Also check folder launcher hotkeys
+        Loop FL_LV.GetCount() {
+            if (FL_LV.GetText(A_Index, 4) == newKey)
+                return "'" . newKey . "' is already assigned to a Folder Launcher entry (row #" . A_Index . "). Each hotkey must be unique."
+        }
         return ""
     }
 
@@ -1428,8 +1731,8 @@ v4.1  —  Initial public release. Features included auto-invoice number generat
     SaveSettings(*) {
         global prefix, current_num, suffix, digit_length, vat_rate, discount_rate, vat_mode
         global active_profile, hotkeyList, sysHK_Invoice, sysHK_Vat, sysHK_Discount
+        global folderLauncherList
 
-        ; Validate Invoice fields
         dlen := Number(guiCtrl_DigitLen.Value)
         if (guiCtrl_DigitLen.Value == "" || dlen < 1) {
             MsgBox("Digit Length must be at least 1.", "Invalid Input", 48)
@@ -1440,27 +1743,23 @@ v4.1  —  Initial public release. Features included auto-invoice number generat
             return
         }
 
-        ; Validate VAT rate
         rawVat := guiCtrl_VatRate.Value
         if (!IsNumber(rawVat) || Number(rawVat) < 0 || Number(rawVat) > 100) {
             MsgBox("VAT Rate must be a number between 0 and 100.", "Invalid Input", 48)
             return
         }
 
-        ; Validate Discount rate
         rawDisc := guiCtrl_DiscRate.Value
         if (!IsNumber(rawDisc) || Number(rawDisc) < 0 || Number(rawDisc) > 100) {
             MsgBox("Discount Rate must be a number between 0 and 100.", "Invalid Input", 48)
             return
         }
 
-        ; Build new system hotkey strings
         newInvKey  := modSymMap[ddInvMod.Text]  . ddInvKey.Text
         newVatKey  := modSymMap[ddVatMod.Text]  . ddVatKey.Text
         newDiscKey := modSymMap[ddDiscMod.Text] . ddDiscKey.Text
         managerKey := sysHK_Manager
 
-        ; Conflict checks among system hotkeys
         sysKeys := [newInvKey, newVatKey, newDiscKey, managerKey]
         sysLabels := ["Invoice", "VAT", "Discount", "Manager (Alt+F10)"]
         conflictFound := false
@@ -1483,7 +1782,6 @@ v4.1  —  Initial public release. Features included auto-invoice number generat
             return
         }
 
-        ; Conflict checks: system vs custom hotkeys
         Loop LV.GetCount() {
             lvKey := LV.GetText(A_Index, 2)
             for si, sk in sysKeys {
@@ -1494,7 +1792,25 @@ v4.1  —  Initial public release. Features included auto-invoice number generat
             }
         }
 
-        ; Apply globals
+        ; Check folder hotkeys vs system hotkeys
+        Loop FL_LV.GetCount() {
+            flHK := FL_LV.GetText(A_Index, 4)
+            if (flHK == "")
+                continue
+            for si, sk in sysKeys {
+                if (flHK == sk) {
+                    MsgBox("Hotkey Conflict Detected`n`nThe " . sysLabels[si] . " hotkey '" . sk . "' is also assigned to a Folder Launcher entry (row #" . A_Index . "). Please resolve this conflict before saving.", "Hotkey Conflict", 48)
+                    return
+                }
+            }
+            Loop LV.GetCount() {
+                if (LV.GetText(A_Index, 2) == flHK) {
+                    MsgBox("Hotkey Conflict Detected`n`nA Folder Launcher entry uses hotkey '" . flHK . "' which is already assigned to Custom Text Hotkey row #" . A_Index . ". Please resolve this before saving.", "Hotkey Conflict", 48)
+                    return
+                }
+            }
+        }
+
         prefix        := guiCtrl_Prefix.Value
         current_num   := Number(guiCtrl_Num.Value)
         suffix        := guiCtrl_Suffix.Value
@@ -1507,7 +1823,6 @@ v4.1  —  Initial public release. Features included auto-invoice number generat
         sysHK_Vat      := newVatKey
         sysHK_Discount := newDiscKey
 
-        ; Write to ini
         IniWrite(active_profile,  "settings.ini", "Settings",      "ActiveProfile")
         IniWrite(sysHK_Invoice,   "settings.ini", "SystemHotkeys", "Invoice")
         IniWrite(sysHK_Vat,       "settings.ini", "SystemHotkeys", "Vat")
@@ -1515,7 +1830,6 @@ v4.1  —  Initial public release. Features included auto-invoice number generat
         IniWrite(sysHK_Manager,   "settings.ini", "SystemHotkeys", "Manager")
         SaveProfileSettings(active_profile, prefix, current_num, suffix, digit_length, vat_rate, discount_rate, vat_mode)
 
-        ; Save custom hotkeys
         try IniDelete("settings.ini", "Hotkeys")
         try IniDelete("settings.ini", "HotkeyState")
         hotkeyList := []
@@ -1530,14 +1844,30 @@ v4.1  —  Initial public release. Features included auto-invoice number generat
             hotkeyList.Push({key: hKey, txt: realTxt, enabled: isEnabled})
         }
 
+        ; Save folder launcher entries
+        try IniDelete("settings.ini", "FolderLauncher")
+        folderLauncherList := []
+        Loop FL_LV.GetCount() {
+            flStatus  := FL_LV.GetText(A_Index, 1)
+            flLabel   := FL_LV.GetText(A_Index, 2)
+            flPath    := FL_LV.GetText(A_Index, 3)
+            flHotkey  := FL_LV.GetText(A_Index, 4)
+            isEnabled := !InStr(flStatus, "OFF")
+            storedVal := flLabel . "|" . flPath . "|" . flHotkey . "|" . (isEnabled ? "1" : "0")
+            IniWrite(storedVal, "settings.ini", "FolderLauncher", A_Index)
+            folderLauncherList.Push({label: flLabel, path: flPath, hotkey: flHotkey, enabled: isEnabled})
+        }
+
         RegisterSystemHotkeys()
         RegisterCustomHotkeys()
+        RegisterFolderHotkeys()
 
         MsgBox("All settings have been saved successfully.`n`n"
             . "Invoice Hotkey : " . sysHK_Invoice . "`n"
             . "VAT Hotkey    : " . sysHK_Vat . "  (Mode: " . vat_mode . ", Rate: " . vat_rate . "%)`n"
             . "Disc. Hotkey  : " . sysHK_Discount . "  (Rate: " . discount_rate . "%)`n"
-            . "Active Profile : " . active_profile,
+            . "Active Profile : " . active_profile . "`n"
+            . "Folder Entries : " . folderLauncherList.Length,
             "Settings Saved", "64 T3")
         mainGui.Destroy()
     }

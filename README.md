@@ -47,6 +47,19 @@ KeyTap Pro is an open-source, fully portable workflow automation suite built usi
 
 ## 📦 Deployment & Portability
 
+There are two ways to run **KeyTap Pro v4.6**:
+
+### A. For Standard Users (Compiled .exe version)
+1. **Download** the `KeyTapPro_v4_6.exe` from the Releases section.
+2. **Place** the .exe file in any folder on your computer (e.g., C:\Tools\KeyTapPro).
+3. **Run** the file (double-click).
+4. The `settings.ini` file will be automatically generated in that same folder the first time you launch the app.
+
+### B. For Developers (Raw .ahk script)
+1. Ensure you have **[AutoHotkey v2.0](https://www.autohotkey.com/)** installed on your system.
+2. Download the `KeyTapPro_v4_6.ahk` source file.
+3. Run the script using the AutoHotkey engine.
+
 *   **Zero Installation Required:** Completely registry-clean and independent. The application runs natively from localized environments, shared network directories, or external flash storage drives.
 *   **Centralized Configuration:** Structural hotkeys, operational variables, and operational states are locally logged inside a single auto-generated `settings.ini` file for effortless deployment across multiple workstation devices.
 *   **System Boot Integration:** To configure the software to launch automatically, press `Win + R`, type `shell:startup`, and establish a shortcut pointing to the application executable file.

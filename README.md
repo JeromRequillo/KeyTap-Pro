@@ -85,14 +85,21 @@ As this tool is intended for deployment in professional workstation environments
 
 ## 📜 License & Usage
 
-This project is licensed under the **MIT License**. 
+This project is open-source and licensed under the **MIT License**. It’s designed to be as flexible and permissive as possible.
 
-You are free to:
-*   **Use** the software for personal or commercial purposes.
-*   **Modify** the source code to fit your specific internal workflow.
-*   **Distribute** the compiled executable within your organization.
+### ✅ What You Can Do
+* **Workplace & Commercial Use:** Feel free to use this tool across your department, branch, or company.
+* **Customization:** Modify the source code however you like to better fit your team's specific daily workflows.
+* **Sharing:** Distribute the script or compiled versions to your coworkers or anyone who needs to speed up their tasks.
 
-*Disclaimer: The developer is not responsible for any data loss or errors resulting from the misuse of the automation features. Always verify output during initial setup.*
+### 📋 The Only Rule (MIT Compliance)
+* **Keep the Attribution:** If you copy, modify, or redistribute the source code, just keep the original copyright notice and credit to the author intact within the script files. 
+
+---
+
+### 💡 Just a Friendly Reminder
+* **Test Before You Deploy:** Since this tool automates typing and clipboard functions, always try out your new sequences or shortcuts in a blank Notepad or safe environment first before running them on active production databases or live client files.
+* **As-Is:** This utility is shared "as is" to help lighten the daily workload. While it’s built to be safe and completely offline, please use it responsibly!
 
 ---
 **Developed & Maintained by:** [Jerom Requillo](https://github.com/JeromRequillo) 🚀

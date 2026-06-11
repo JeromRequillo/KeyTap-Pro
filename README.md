@@ -75,6 +75,18 @@ There are two ways to run **KeyTap Pro v4.6**:
 ├── 📄 settings.ini          # Local Configurations File (Auto-generated)
 └── 📄 README.md             # Project Documentation Workspace
 ```
+## 🛠️ Why KeyTap Pro Was Created
+
+This project was born out of operational necessity to solve a classic workplace problem: **script fatigue and maintenance bottlenecks.**
+
+Originally, I developed multiple separate automation scripts to handle different tasks in our office and shared them with my coworkers. While the tools drastically improved our speed, they created a massive headache:
+* **The Mess:** Managing a dozen disconnected script files became confusing to organize and maintain.
+* **The Dependency:** Because everything was hardcoded, team members had to call me over every single time they wanted to customize a template or adjust a setting.
+
+To fix this, I merged all those scattered tools into a centralized dashboard, evolving the scripts into a standalone application. **KeyTap Pro** was custom-built and heavily tailored around my personal daily workflow and the specific operational needs of our department. 
+
+By putting an intuitive interface over the automation engine, the app keeps the exact specialized functionality required for our daily tasks, while allowing non-technical users to customize, toggle, and manage their own configurations completely independently.
+
 ## 💼 Real-World Use Case & Internal Application
 
 While **KeyTap Pro** is compiled as a modular utility for the broader open-source community, this solution was originally architected out of operational necessity as a **custom-tailored internal workspace tool**.

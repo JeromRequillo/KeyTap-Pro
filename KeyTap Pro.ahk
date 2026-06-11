@@ -1,5 +1,5 @@
-;@Ahk2Exe-SetFileVersion 4.5.0.0
-;@Ahk2Exe-SetProductVersion 4.5.0.0
+;@Ahk2Exe-SetFileVersion 4.6.0.0
+;@Ahk2Exe-SetProductVersion 4.6.0.0
 ;@Ahk2Exe-SetCompanyName Jerom Requillo
 ;@Ahk2Exe-SetDescription KeyTap Pro - Workflow Automation Suite
 ;@Ahk2Exe-SetCopyright Copyright (C) 2026 Jerom Requillo. All rights reserved.
@@ -8,12 +8,11 @@
 #SingleInstance Force
 
 ; --- SYSTEM TRAY CONFIGURATION ---
-A_IconTip := "🎯 KeyTap Pro v4.5"
+A_IconTip := "🎯 KeyTap Pro v4.6"
 TrayRecalcMenu()
 
-; =========================================================
 ; Global Variables
-; =========================================================
+
 global current_num    := "0"
 global prefix         := "AAPI"
 global suffix         := "S"
@@ -42,10 +41,11 @@ global sysFunc_Vat      := ""
 global sysFunc_Discount := ""
 global sysFunc_Manager  := ""
 
-; =========================================================
+
 ; STARTUP
-; =========================================================
+
 LoadSettings()
+LaunchGUI()  
 RegisterSystemHotkeys()
 RegisterCustomHotkeys()
 RegisterFolderHotkeys()
@@ -53,9 +53,9 @@ RegisterFolderHotkeys()
 OnMessage(0x404, OnTrayIcon)
 return
 
-; =========================================================
+
 ; TRAY
-; =========================================================
+
 TrayRecalcMenu() {
     Tray := A_TrayMenu
     Tray.Delete()
@@ -73,9 +73,9 @@ OnTrayIcon(wParam, lParam, msg, hwnd) {
     }
 }
 
-; =========================================================
+
 ; LOAD SETTINGS
-; =========================================================
+
 LoadSettings() {
     global current_num, prefix, suffix, digit_length, vat_rate, discount_rate, vat_mode
     global active_profile, hotkeyList, sysHK_Invoice, sysHK_Vat, sysHK_Discount, sysHK_Manager
@@ -150,9 +150,9 @@ LoadSettings() {
     }
 }
 
-; =========================================================
+
 ; REGISTER SYSTEM HOTKEYS
-; =========================================================
+
 RegisterSystemHotkeys() {
     global sysHK_Invoice, sysHK_Vat, sysHK_Discount, sysHK_Manager
     global sysFunc_Invoice, sysFunc_Vat, sysFunc_Discount, sysFunc_Manager
@@ -191,9 +191,9 @@ RegisterSystemHotkeys() {
     }
 }
 
-; =========================================================
+
 ; REGISTER FOLDER HOTKEYS
-; =========================================================
+
 RegisterFolderHotkeys() {
     global folderLauncherList, activeFolderHotkeys
 
@@ -268,9 +268,9 @@ OpenFolder(folderPath) {
     SetTimer(() => ToolTip(), -2500)
 }
 
-; =========================================================
+
 ; SYSTEM HOTKEY ACTIONS
-; =========================================================
+
 DoInvoiceHotkey() {
     Critical()
     global current_num, active_profile
@@ -399,9 +399,9 @@ DoDiscountHotkey() {
     SetTimer(() => ToolTip(), -2000)
 }
 
-; =========================================================
+
 ; CUSTOM TEXT HOTKEYS
-; =========================================================
+
 RegisterCustomHotkeys() {
     global hotkeyList, activeHotkeys
 
@@ -422,12 +422,22 @@ RegisterCustomHotkeys() {
 }
 
 CreateHotkeyFunc(txt) {
-    return (*) => SendInput(txt)
+    return (*) => SendTextSafe(txt)
 }
 
-; =========================================================
+SendTextSafe(txt) {
+    global activeFolderHotkeys
+    ; Suspend folder hotkeys so typed uppercase letters don't trigger them
+    for hkStr, _ in activeFolderHotkeys
+        try Hotkey(hkStr, "Off")
+    SendInput(txt)
+    for hkStr, hkFunc in activeFolderHotkeys
+        try Hotkey(hkStr, hkFunc, "On")
+}
+
+
 ; HELPERS
-; =========================================================
+
 GenerateInvoice(p := "", n := 0, s := "", dlen := 0) {
     global prefix, current_num, suffix, digit_length
     target_prefix := (p == "")   ? prefix       : p
@@ -490,9 +500,9 @@ ParseHKString(hkStr) {
     return {modLabel: "Alt (!)", keyStr: hkStr}
 }
 
-; =========================================================
+
 ; MAIN GUI
-; =========================================================
+
 LaunchGUI() {
     global mainGui, current_num, prefix, suffix, digit_length, vat_rate
     global active_profile, hotkeyList, sysHK_Invoice, sysHK_Vat, sysHK_Manager
@@ -504,12 +514,12 @@ LaunchGUI() {
     if (mainGui != "")
         mainGui.Destroy()
 
-    mainGui := Gui("-MaximizeBox", "🎯 KeyTap Pro v4.5")
+    mainGui := Gui("-MaximizeBox", "🎯 KeyTap Pro v4.6")
     mainGui.OnEvent("Close", (*) => mainGui.Destroy())
     mainGui.SetFont("s10", "Segoe UI")
 
     tabMenu := mainGui.Add("Tab3", "x10 y10 w660 h560",
-        ["Invoice Config", "Custom Text Hotkeys", "VAT Calculator", "Folder Launcher", "About"])
+        ["Invoice Config", "Custom Text Hotkeys", "VAT Calculator", "Folder Launcher", "Mini Apps", "About"])
 
     modifierChoices := ["Alt (!)", "Ctrl (^)", "Shift (+)", "Ctrl+Alt (^!)", "Alt+Shift (!+)", "Ctrl+Shift (^+)"]
     modSymMap := Map(
@@ -548,9 +558,9 @@ LaunchGUI() {
         dd.Value := 1
     }
 
-    ; =========================================================
+    
     ; TAB 1: INVOICE CONFIGURATION
-    ; =========================================================
+    
     tabMenu.UseTab(1)
 
     mainGui.SetFont("bold s13", "Segoe UI")
@@ -685,9 +695,9 @@ The current sequence number is automatically saved to settings.ini after every h
     mainGui.Add("Edit", "x340 y355 w285 h188 +ReadOnly +Wrap -WantReturn +VScroll", notesTxt)
     mainGui.SetFont("s10 Norm cDefault", "Segoe UI")
 
-    ; =========================================================
+    
     ; TAB 2: CUSTOM TEXT HOTKEYS
-    ; =========================================================
+    
     tabMenu.UseTab(2)
 
     mainGui.SetFont("bold s13", "Segoe UI")
@@ -751,8 +761,8 @@ The current sequence number is automatically saved to settings.ini after every h
     btnAdd      := mainGui.Add("Button", "x28 y480 w145 h30", "➕ Add / Update")
     btnDel      := mainGui.Add("Button", "x180 y480 w130 h30", "❌ Delete")
     btnToggle   := mainGui.Add("Button", "x317 y480 w155 h30", "🔁 Toggle ON / OFF")
-    btnMoveUp   := mainGui.Add("Button", "x480 y480 w70 h30", "▲ Move Up")
-    btnMoveDown := mainGui.Add("Button", "x557 y480 w70 h30", "▼ Move Down")
+    btnMoveUp   := mainGui.Add("Button", "x480 y480 w70 h30", "▲ Up")
+    btnMoveDown := mainGui.Add("Button", "x557 y480 w70 h30", "▼ Down")
 
     mainGui.SetFont("s8 cGray Italic", "Segoe UI")
     mainGui.Add("Text", "x28 y516 w600 h28",
@@ -766,9 +776,9 @@ The current sequence number is automatically saved to settings.ini after every h
     btnMoveDown.OnEvent("Click", MoveRowDown)
     LV.OnEvent("Click", SelectHotkey)
 
-    ; =========================================================
+    
     ; TAB 3: VAT CALCULATOR
-    ; =========================================================
+    
     tabMenu.UseTab(3)
 
     mainGui.SetFont("bold s12", "Segoe UI")
@@ -1150,9 +1160,9 @@ The current sequence number is automatically saved to settings.ini after every h
     }
     btnCopyAll.OnEvent("Click", OnCopyAll)
 
-    ; =========================================================
+    
     ; TAB 4: FOLDER LAUNCHER
-    ; =========================================================
+    
     tabMenu.UseTab(4)
 
     ; ── HEADER ───────────────────────────────────────────────
@@ -1212,8 +1222,12 @@ The current sequence number is automatically saved to settings.ini after every h
     mainGui.SetFont("s10 Norm cDefault", "Segoe UI")
 
     UpdateFlHKLabel() {
-        sym := modSymMap[ddFlMod.Text]
-        fl_hkLabel.Value := "Active: " . sym . ddFlKey.Text
+        if (ddFlKey.Value == 1) {
+            fl_hkLabel.Value := "Active: none"
+        } else {
+            sym := modSymMap[ddFlMod.Text]
+            fl_hkLabel.Value := "Active: " . sym . ddFlKey.Text
+        }
     }
     ddFlMod.OnEvent("Change", (*) => UpdateFlHKLabel())
     ddFlKey.OnEvent("Change", (*) => UpdateFlHKLabel())
@@ -1236,20 +1250,20 @@ The current sequence number is automatically saved to settings.ini after every h
 
     mainGui.SetFont("s8 cGray Italic", "Segoe UI")
     mainGui.Add("Text", "x28 y482 w600 h28",
-        "Tip: Click any row to load it into the editor. Use [Open Selected Now] to open the folder immediately without a hotkey. Hotkeys are optional — a folder entry without a hotkey can still be opened from this panel. Status shows ⚠ Missing if the folder path no longer exists on disk.")
+        "Tip: Click any row to load it into the editor. Use [Open Selected Now] to open the folder immediately without a hotkey. Hotkeys are optional — a folder entry without a hotkey can still be opened from this panel. ")
     mainGui.SetFont("s10 Norm cDefault", "Segoe UI")
 
     ; ── HOW TO USE + NOTES ───────────────────────────────────
     mainGui.Add("GroupBox", "x15 y525 w305 h50", "  💡 Quick Tips")
     mainGui.SetFont("s8 Norm", "Segoe UI")
     mainGui.Add("Text", "x28 y542 w285 h30",
-        "You can register network paths (\\server\share), USB drives, or any local folder. Hotkeys are registered globally — they work from any application.")
+        "You can register network paths (\\server\share), USB drives, or any local folder. ")
     mainGui.SetFont("s10 Norm cDefault", "Segoe UI")
 
     mainGui.Add("GroupBox", "x330 y525 w305 h50", "  📌 Storage")
     mainGui.SetFont("s8 Norm", "Segoe UI")
     mainGui.Add("Text", "x343 y542 w285 h30",
-        "All folder entries are saved to settings.ini under [FolderLauncher]. They reload automatically on next launch.")
+        "All folder entries are saved to settings.ini under [FolderLauncher]. ")
     mainGui.SetFont("s10 Norm cDefault", "Segoe UI")
 
     ; ── FOLDER LIST CLICK → LOAD INTO EDITOR ─────────────────
@@ -1289,8 +1303,8 @@ The current sequence number is automatically saved to settings.ini after every h
             MsgBox("Please enter or browse to a folder path.", "Required Field", 48)
             return
         }
-        ; Build hotkey string — if key is same as first choice and mod is first, treat as "no hotkey"
-        newHK := modSymMap[ddFlMod.Text] . ddFlKey.Text
+        ; Build hotkey string — if key dropdown is at position 1 (default), treat as "no hotkey"
+        newHK := (ddFlKey.Value == 1) ? "" : (modSymMap[ddFlMod.Text] . ddFlKey.Text)
 
         ; Check for hotkey conflict with system/custom hotkeys
         if (newHK != "") {
@@ -1380,17 +1394,125 @@ The current sequence number is automatically saved to settings.ini after every h
     OpenFolder(pth)
 }
 
-    ; =========================================================
-    ; TAB 5: ABOUT
-    ; =========================================================
+    
+    
+    ; TAB 5: MINI APPS
+    
     tabMenu.UseTab(5)
+
+    mainGui.SetFont("bold s13", "Segoe UI")
+    mainGui.Add("Text", "x20 y48 w500 h26 c0x0055AA", "🧰 Mini Apps & Tools")
+    mainGui.SetFont("s8 Norm cGray", "Segoe UI")
+    mainGui.Add("Text", "x20 y75 w630 h16",
+        "Click any tool to launch it in its own window. Each app runs independently.")
+    mainGui.SetFont("s10 Norm cDefault", "Segoe UI")
+
+    ; ── Card dimensions ─────────────────────────────────────
+    ; Col1 x=15  Col2 x=335  CardW=310  CardH=116
+    ; Rows: y=94, 220, 346, 466
+
+    ; === ROW 1 ===
+    ; Card 1-1: Scratchpad
+    mainGui.Add("GroupBox", "x15 y94 w310 h116", "  📝 Quick Scratchpad")
+    mainGui.SetFont("s9 Norm", "Segoe UI")
+    mainGui.Add("Text", "x26 y113 w285 h36",
+        "Floating notepad for quick notes and clipboard drafts. Notes persist across restarts.")
+    mainGui.SetFont("s8 cGray Italic", "Segoe UI")
+    mainGui.Add("Text", "x26 y152 w175 h16", "✦ Auto-saves on close")
+    mainGui.SetFont("s9 Norm cDefault", "Segoe UI")
+    btnLaunchScratch := mainGui.Add("Button", "x200 y149 w118 h26", "📝 Open Notepad")
+    btnLaunchScratch.OnEvent("Click", (*) => LaunchScratchpad())
+
+    ; Card 1-2: Volume Control
+    mainGui.Add("GroupBox", "x335 y94 w310 h116", "  🔊 Volume & Media Control")
+    mainGui.SetFont("s9 Norm", "Segoe UI")
+    mainGui.Add("Text", "x346 y113 w285 h36",
+        "Control system volume with a slider. Manage media playback — play, pause, skip, mute.")
+    mainGui.SetFont("s8 cGray Italic", "Segoe UI")
+    mainGui.Add("Text", "x346 y152 w175 h16", "✦ Uses Windows multimedia keys")
+    mainGui.SetFont("s9 Norm cDefault", "Segoe UI")
+    btnLaunchVol := mainGui.Add("Button", "x520 y149 w118 h26", "🔊 Open Volume")
+    btnLaunchVol.OnEvent("Click", (*) => LaunchVolumeControl())
+
+    ; === ROW 2 ===
+    ; Card 2-1: Screen Dimmer
+    mainGui.Add("GroupBox", "x15 y220 w310 h116", "  🌙 Screen Dimmer / Eye Care")
+    mainGui.SetFont("s9 Norm", "Segoe UI")
+    mainGui.Add("Text", "x26 y239 w285 h36",
+        "Overlays a dark transparent layer on your screen to reduce brightness and eye strain.")
+    mainGui.SetFont("s8 cGray Italic", "Segoe UI")
+    mainGui.Add("Text", "x26 y278 w175 h16", "✦ Adjustable opacity, hideable")
+    mainGui.SetFont("s9 Norm cDefault", "Segoe UI")
+    btnLaunchDimmer := mainGui.Add("Button", "x200 y275 w118 h26", "🌙 Open Dimmer")
+    btnLaunchDimmer.OnEvent("Click", (*) => LaunchScreenDimmer())
+
+    ; Card 2-2: Disk Cleaner
+    mainGui.Add("GroupBox", "x335 y220 w310 h116", "  🗑 Disk Cleaner")
+    mainGui.SetFont("s9 Norm", "Segoe UI")
+    mainGui.Add("Text", "x346 y239 w285 h36",
+        "Empty the Recycle Bin and flush Windows Temp folder to free up disk space in one click.")
+    mainGui.SetFont("s8 cGray Italic", "Segoe UI")
+    mainGui.Add("Text", "x346 y278 w175 h16", "✦ Shows files removed after cleanup")
+    mainGui.SetFont("s9 Norm cDefault", "Segoe UI")
+    btnLaunchCleaner := mainGui.Add("Button", "x520 y275 w118 h26", "🗑 Open Cleaner")
+    btnLaunchCleaner.OnEvent("Click", (*) => LaunchDiskCleaner())
+
+    ; === ROW 3 ===
+    ; Card 3-1: Live Clock
+    mainGui.Add("GroupBox", "x15 y346 w310 h116", "  🕐 Live Clock & Date")
+    mainGui.SetFont("s9 Norm", "Segoe UI")
+    mainGui.Add("Text", "x26 y365 w285 h36",
+        "Compact floating clock showing live time and date. Always-on-top over any window.")
+    mainGui.SetFont("s8 cGray Italic", "Segoe UI")
+    mainGui.Add("Text", "x26 y404 w175 h16", "✦ Click to toggle date display")
+    mainGui.SetFont("s9 Norm cDefault", "Segoe UI")
+    btnLaunchClock := mainGui.Add("Button", "x200 y401 w118 h26", "🕐 Open Clock")
+    btnLaunchClock.OnEvent("Click", (*) => LaunchLiveClock())
+
+    ; Card 3-2: Pomodoro Timer
+    mainGui.Add("GroupBox", "x335 y346 w310 h116", "  🍅 Pomodoro / Work Timer")
+    mainGui.SetFont("s9 Norm", "Segoe UI")
+    mainGui.Add("Text", "x346 y365 w285 h36",
+        "Focus timer: 25-minute work sessions with 5-minute breaks. Beeps when session ends.")
+    mainGui.SetFont("s8 cGray Italic", "Segoe UI")
+    mainGui.Add("Text", "x346 y404 w175 h16", "✦ Customizable work/break duration")
+    mainGui.SetFont("s9 Norm cDefault", "Segoe UI")
+    btnLaunchPomo := mainGui.Add("Button", "x520 y401 w118 h26", "🍅 Open Timer")
+    btnLaunchPomo.OnEvent("Click", (*) => LaunchPomodoro())
+
+    ; === ROW 4 ===
+    ; Card 4-1: Color Picker
+    mainGui.Add("GroupBox", "x15 y472 w310 h100", "  🎨 Color Picker")
+    mainGui.SetFont("s9 Norm", "Segoe UI")
+    mainGui.Add("Text", "x26 y491 w285 h30",
+        "Pick any color on screen. Instantly copies the HEX and RGB values to clipboard.")
+    mainGui.SetFont("s8 cGray Italic", "Segoe UI")
+    mainGui.Add("Text", "x26 y524 w175 h16", "✦ Click button to capture pixel color")
+    mainGui.SetFont("s9 Norm cDefault", "Segoe UI")
+    btnLaunchColor := mainGui.Add("Button", "x200 y521 w118 h26", "🎨 Open Picker")
+    btnLaunchColor.OnEvent("Click", (*) => LaunchColorPicker())
+
+    ; Card 4-2: Case Converter
+    mainGui.Add("GroupBox", "x335 y472 w310 h100", "  🔡 Text Case Converter")
+    mainGui.SetFont("s9 Norm", "Segoe UI")
+    mainGui.Add("Text", "x346 y491 w285 h30",
+        "Convert text to UPPER, lower, Title, or Sentence case. Paste in, convert, copy out.")
+    mainGui.SetFont("s8 cGray Italic", "Segoe UI")
+    mainGui.Add("Text", "x346 y524 w175 h16", "✦ Works on multi-line text")
+    mainGui.SetFont("s9 Norm cDefault", "Segoe UI")
+    btnLaunchCase := mainGui.Add("Button", "x520 y521 w118 h26", "🔡 Open Converter")
+    btnLaunchCase.OnEvent("Click", (*) => LaunchCaseConverter())
+
+    ; TAB 6: ABOUT
+    
+    tabMenu.UseTab(6)
 
     mainGui.Add("GroupBox", "x15 y48 w620 h118", "  🎯 About This Application")
     mainGui.SetFont("bold s14 c0x0055AA", "Segoe UI")
-    mainGui.Add("Text", "x30 y68 w380 h30", "🎯 KeyTap Pro  v4.5")
+    mainGui.Add("Text", "x30 y68 w380 h30", "🎯 KeyTap Pro  v4.6")
     mainGui.SetFont("s9 Norm", "Segoe UI")
     mainGui.Add("Text", "x30 y100 w85 h20 +0x200", "Version:")
-    mainGui.Add("Text", "x118 y100 w270 h20", "4.5.0 ")
+    mainGui.Add("Text", "x118 y100 w270 h20", "4.6.0 ")
     mainGui.Add("Text", "x30 y120 w85 h20 +0x200", "Developer:")
     mainGui.Add("Text", "x118 y120 w180 h20", "Jerom Requillo")
     mainGui.Add("Text", "x30 y140 w85 h20 +0x200", "Build Date:")
@@ -1463,6 +1585,8 @@ Multiple Profiles are supported within a single installation. Each profile maint
     clTxt := "
     (
 
+v4.6  —  Mini Apps tab added. Eight built-in utility tools: Quick Scratchpad, Volume & Media Control, Screen Dimmer, Disk Cleaner, Live Clock, Pomodoro Timer, Color Picker, and Text Case Converter. Each tool launches in its own independent window.
+
 v4.5  —  Folder Launcher tab added. Register any number of folder paths with optional global hotkeys. Includes a Browse button, label field, inline Open button, Toggle ON/OFF, and conflict detection against all existing hotkeys. Folder status automatically shows OK or Missing based on disk availability.
 
 v4.4  —  VAT and Discount tab completely redesigned with a wider window layout (680px). GroupBox containers added throughout for visual clarity. Built-in live calculator with a full per-transaction breakdown. Discount hotkey with multi-line support. VAT Add and Deduct mode toggle using radio buttons. Quick-set discount buttons at 5%, 10%, 15%, and 20%. Live peso preview on all rate settings.
@@ -1487,9 +1611,9 @@ v4.1  —  Initial public release. Features included auto-invoice number generat
 
     mainGui.Show("w680 h640")
 
-    ; =========================================================
+    
     ; GUI INTERNAL FUNCTIONS
-    ; =========================================================
+    
 
     UpdatePreview(*) {
         dlen := (guiCtrl_DigitLen.Value == "" || Number(guiCtrl_DigitLen.Value) < 1)
@@ -1725,9 +1849,9 @@ v4.1  —  Initial public release. Features included auto-invoice number generat
         LV.Modify(rowB, "+Select +Focus")
     }
 
-    ; =========================================================
+    
     ; SAVE ALL SETTINGS
-    ; =========================================================
+    
     SaveSettings(*) {
         global prefix, current_num, suffix, digit_length, vat_rate, discount_rate, vat_mode
         global active_profile, hotkeyList, sysHK_Invoice, sysHK_Vat, sysHK_Discount
@@ -1871,4 +1995,657 @@ v4.1  —  Initial public release. Features included auto-invoice number generat
             "Settings Saved", "64 T3")
         mainGui.Destroy()
     }
+}
+
+
+; MINI APPS LAUNCHER FUNCTIONS
+
+
+; --- 1. SCRATCHPAD ---
+LaunchScratchpad() {
+    static scratchGui  := ""
+    static scratchEdit := ""
+    static saveFile    := A_ScriptDir . "\scratchpad.txt"
+
+    if (IsObject(scratchGui)) {
+        try {
+            scratchGui.Show()
+            return
+        }
+    }
+
+    ; Load saved content from file
+    savedContent := ""
+    if (FileExist(saveFile)) {
+        try savedContent := FileRead(saveFile, "UTF-8")
+    }
+
+    scratchGui := Gui("+AlwaysOnTop -MaximizeBox", "📝 Quick Scratchpad")
+    scratchGui.SetFont("s10", "Segoe UI")
+
+    ; Auto-save on close
+    scratchGui.OnEvent("Close", SaveAndClose)
+    SaveAndClose(*) {
+        try FileDelete(saveFile)
+        try FileAppend(scratchEdit.Value, saveFile, "UTF-8")
+        scratchGui.Destroy()
+    }
+
+    scratchGui.Add("Text", "x8 y8 w300 h18 cGray", "Auto-saves when closed. Notes persist across restarts.")
+    savedLabel := scratchGui.Add("Text", "x8 y8 w384 h18 cGray", "")  ; placeholder for status
+    scratchEdit := scratchGui.Add("Edit", "x8 y28 w384 h280 +Multi +WantReturn +VScroll +Wrap", savedContent)
+
+    btnCopy  := scratchGui.Add("Button", "x8   y316 w90 h28", "📋 Copy All")
+    btnSave  := scratchGui.Add("Button", "x104 y316 w80 h28", "💾 Save ")
+    btnClear := scratchGui.Add("Button", "x190 y316 w80 h28", "🗑 Clear")
+    btnPin   := scratchGui.Add("Button", "x302 y316 w90 h28", "📌 Stay Top")
+
+    btnCopy.OnEvent("Click", (*) => (A_Clipboard := scratchEdit.Value, ToolTip("Copied!"), SetTimer(() => ToolTip(), -1500)))
+    btnSave.OnEvent("Click", SaveNote)
+    btnClear.OnEvent("Click", (*) => scratchEdit.Value := "")
+    btnPin.OnEvent("Click",   (*) => scratchGui.Opt("+AlwaysOnTop"))
+
+    SaveNote(*) {
+        try FileDelete(saveFile)
+        try FileAppend(scratchEdit.Value, saveFile, "UTF-8")
+        ToolTip("💾 Saved!")
+        SetTimer(() => ToolTip(), -1500)
+    }
+
+    scratchGui.Show("w400 h352")
+}
+
+; --- 2. VOLUME & MEDIA CONTROL ---
+LaunchVolumeControl() {
+    static volGui := ""
+    if (IsObject(volGui)) {
+        try { volGui.Show()
+            return
+        }
+    }
+
+    volGui := Gui("-MaximizeBox +AlwaysOnTop", "🔊 Volume & Media Control")
+    volGui.SetFont("s10", "Segoe UI")
+    volGui.OnEvent("Close", (*) => volGui.Destroy())
+
+    volGui.SetFont("bold s11", "Segoe UI")
+    volGui.Add("Text", "x10 y10 w280 h22 c0x0055AA", "🔊 System Volume")
+    volGui.SetFont("s9 Norm", "Segoe UI")
+
+    volGui.Add("Text", "x10 y38 w50 h22 +0x200", "Volume:")
+    volSlider := volGui.Add("Slider", "x65 y38 w200 h28 +Thick15 Range0-100", 50)
+    volLabel  := volGui.Add("Text", "x270 y38 w40 h22", "50%")
+
+    volSlider.OnEvent("Change", (*) => (
+        SoundSetVolume(volSlider.Value),
+        volLabel.Value := volSlider.Value . "%"
+    ))
+
+    ; Read current volume
+    try {
+        curVol := Round(SoundGetVolume())
+        volSlider.Value := curVol
+        volLabel.Value  := curVol . "%"
+    }
+
+    ; Mute toggle
+    btnMute := volGui.Add("Button", "x10 y72 w90 h28", "🔇 Mute")
+    btnMute.OnEvent("Click", (*) => (
+        SoundSetMute(-1),
+        ToolTip("Mute toggled"),
+        SetTimer(() => ToolTip(), -1200)
+    ))
+
+    volGui.SetFont("bold s11", "Segoe UI")
+    volGui.Add("Text", "x10 y112 w280 h22 c0x0055AA", "⏯ Media Playback")
+    volGui.SetFont("s9 Norm", "Segoe UI")
+
+    btnPrev := volGui.Add("Button", "x10  y138 w85 h32", "⏮ Prev")
+    btnPlay := volGui.Add("Button", "x100 y138 w100 h32", "⏯ Play/Pause")
+    btnNext := volGui.Add("Button", "x205 y138 w85 h32", "⏭ Next")
+
+    btnPrev.OnEvent("Click", (*) => Send("{Media_Prev}"))
+    btnPlay.OnEvent("Click", (*) => Send("{Media_Play_Pause}"))
+    btnNext.OnEvent("Click", (*) => Send("{Media_Next}"))
+
+    volGui.SetFont("bold s11", "Segoe UI")
+    volGui.Add("Text", "x10 y182 w280 h22 c0x0055AA", "🔈 Quick Volume Presets")
+    volGui.SetFont("s9 Norm", "Segoe UI")
+
+    btn0   := volGui.Add("Button", "x10  y206 w60 h26", "0%")
+    btn25  := volGui.Add("Button", "x75  y206 w60 h26", "25%")
+    btn50  := volGui.Add("Button", "x140 y206 w60 h26", "50%")
+    btn75  := volGui.Add("Button", "x205 y206 w60 h26", "75%")
+    btn100 := volGui.Add("Button", "x270 y206 w60 h26", "100%")
+
+    SetVol(v) {
+        SoundSetVolume(v)
+        volSlider.Value := v
+        volLabel.Value  := v . "%"
+    }
+    btn0.OnEvent("Click",   (*) => SetVol(0))
+    btn25.OnEvent("Click",  (*) => SetVol(25))
+    btn50.OnEvent("Click",  (*) => SetVol(50))
+    btn75.OnEvent("Click",  (*) => SetVol(75))
+    btn100.OnEvent("Click", (*) => SetVol(100))
+
+    volGui.Show("w340 h244")
+}
+
+; --- 3. SCREEN DIMMER ---
+LaunchScreenDimmer() {
+    static dimmerGui  := ""
+    static overlayGui := ""
+    static isDimmed   := false
+
+    if (IsObject(dimmerGui)) {
+        try { dimmerGui.Show()
+            return
+        }
+    }
+
+    dimmerGui := Gui("-MaximizeBox +AlwaysOnTop", "🌙 Screen Dimmer")
+    dimmerGui.SetFont("s10", "Segoe UI")
+    dimmerGui.OnEvent("Close", OnDimmerClose)
+    OnDimmerClose(*) {
+        if (overlayGui != "") {
+            overlayGui.Destroy()
+            overlayGui := ""
+        }
+        isDimmed := false
+        dimmerGui.Destroy()
+        dimmerGui := ""
+    }
+
+    ; Mode: 0 = Dark dim, 1 = Warm/Blue-light filter
+    static filterMode := 0
+
+    dimmerGui.SetFont("bold s11 c0x0055AA", "Segoe UI")
+    dimmerGui.Add("Text", "x10 y10 w330 h22", "🌙 Screen Dimmer & Eye Protection")
+    dimmerGui.SetFont("s9 Norm", "Segoe UI")
+    dimmerGui.Add("Text", "x10 y34 w330 h18",
+        "Reduce eye strain with a dark or warm-toned screen overlay.")
+
+    ; Mode toggle buttons
+    dimmerGui.SetFont("s9 Bold", "Segoe UI")
+    dimmerGui.Add("Text", "x10 y60 w60 h20 +0x200", "Mode:")
+    btnModeDark := dimmerGui.Add("Button", "x72  y57 w130 h24", "🌑 Dark Dim")
+    btnModeWarm := dimmerGui.Add("Button", "x208 y57 w130 h24", "🟡 Warm / Blue Light")
+    dimmerGui.SetFont("s9 Norm", "Segoe UI")
+
+    ; Opacity slider
+    dimmerGui.Add("Text", "x10 y92 w65 h22 +0x200", "Strength:")
+    dimSlider := dimmerGui.Add("Slider", "x80 y92 w210 h26 +Thick15 Range5-90", 35)
+    dimLabel  := dimmerGui.Add("Text", "x295 y92 w44 h22", "35%")
+
+    dimSlider.OnEvent("Change", OnSliderChange)
+    OnSliderChange(*) {
+        dimLabel.Value := dimSlider.Value . "%"
+        if (isDimmed)
+            UpdateOverlay()
+    }
+
+    ; Action buttons
+    btnToggleDim := dimmerGui.Add("Button", "x10 y128 w148 h30", "🌙 Enable")
+    btnHide      := dimmerGui.Add("Button", "x164 y128 w174 h30", "🔽 Hide This Window")
+    btnToggleDim.OnEvent("Click", ToggleDim)
+    btnHide.OnEvent("Click",      (*) => dimmerGui.Hide())
+
+    ; Mode button handlers
+    btnModeDark.OnEvent("Click", (*) => SetMode(0))
+    btnModeWarm.OnEvent("Click", (*) => SetMode(1))
+
+    ; Warm tip
+    tipCtrl := dimmerGui.Add("Text", "x10 y167 w330 h28 cGray",
+        "🟡 Warm mode applies a soft amber tint to reduce blue light for comfortable night viewing.")
+
+    SetMode(m) {
+        filterMode := m
+        if (m == 0) {
+            btnModeDark.SetFont("bold")
+            btnModeWarm.SetFont("Norm")
+            tipCtrl.Value := "🌑 Dark mode dims the screen to reduce overall brightness."
+        } else {
+            btnModeDark.SetFont("Norm")
+            btnModeWarm.SetFont("bold")
+            tipCtrl.Value := "🟡 Warm mode applies a soft amber tint to reduce blue light for night viewing."
+        }
+        if (isDimmed)
+            UpdateOverlay()
+    }
+
+    GetOverlayColor() {
+        ; Dark mode: black overlay. Warm mode: amber/orange tint (#FF8C00 = warm amber)
+        return (filterMode == 1) ? "C8741A" : "000000"
+    }
+
+    UpdateOverlay() {
+        if (!IsObject(overlayGui))
+            return
+        overlayGui.BackColor := GetOverlayColor()
+        WinSetTransparent(Round(dimSlider.Value * 2.55), overlayGui)
+    }
+
+    ToggleDim(*) {
+        if (isDimmed) {
+            if (IsObject(overlayGui))
+                overlayGui.Destroy()
+            overlayGui := ""
+            isDimmed   := false
+            btnToggleDim.Text := "🌙 Enable"
+        } else {
+            overlayGui := Gui("+E0x80000 -Caption +ToolWindow +AlwaysOnTop")
+            overlayGui.BackColor := GetOverlayColor()
+            overlayGui.Show("x0 y0 w" . A_ScreenWidth . " h" . A_ScreenHeight . " NoActivate")
+            WinSetTransparent(Round(dimSlider.Value * 2.55), overlayGui)
+            WinSetExStyle("+0x20", overlayGui)   ; click-through
+            isDimmed := true
+            btnToggleDim.Text := "☀ Disable"
+        }
+    }
+
+    ; Default: highlight dark mode button
+    btnModeDark.SetFont("bold")
+    dimmerGui.Show("w348 h202")
+}
+
+; --- 4. DISK CLEANER ---
+LaunchDiskCleaner() {
+    static cleanGui := ""
+    if (IsObject(cleanGui)) {
+        try { cleanGui.Show()
+            return
+        }
+    }
+
+    cleanGui := Gui("-MaximizeBox +AlwaysOnTop", "🗑 Disk Cleaner")
+    cleanGui.SetFont("s10", "Segoe UI")
+    cleanGui.OnEvent("Close", (*) => cleanGui.Destroy())
+
+    cleanGui.SetFont("bold s11 c0x0055AA", "Segoe UI")
+    cleanGui.Add("Text", "x10 y10 w360 h22", "🗑 Recycle Bin & Temp Folder Cleaner")
+    cleanGui.SetFont("s9 Norm", "Segoe UI")
+    cleanGui.Add("Text", "x10 y36 w360 h30",
+        "Free up disk space by emptying the Recycle Bin and clearing the Windows Temp folder.")
+
+    cbRecycle := cleanGui.Add("CheckBox", "x10 y72 w200 h22 +Checked", "Empty Recycle Bin")
+    cbTemp    := cleanGui.Add("CheckBox", "x10 y98 w200 h22 +Checked", "Clear Temp Folder (%TEMP%)")
+    cbPrefetch := cleanGui.Add("CheckBox", "x10 y124 w200 h22", "Clear Prefetch (Admin required)")
+
+    resultTxt := cleanGui.Add("Edit", "x10 y156 w360 h80 +ReadOnly +Wrap +VScroll", "Results will appear here...")
+
+    btnClean := cleanGui.Add("Button", "x10 y244 w170 h32", "🚀 Run Cleanup Now")
+    btnClose := cleanGui.Add("Button", "x190 y244 w120 h32", "✖ Close")
+    btnClose.OnEvent("Click", (*) => cleanGui.Destroy())
+
+    btnClean.OnEvent("Click", DoClean)
+
+    DoClean(*) {
+        log := ""
+        if (cbRecycle.Value) {
+            try {
+                FileRecycleEmpty()
+                log .= "✅ Recycle Bin emptied.`n"
+            } catch as e {
+                log .= "⚠ Recycle Bin: " . e.Message . "`n"
+            }
+        }
+        if (cbTemp.Value) {
+            tempPath := EnvGet("TEMP")
+            deleted := 0
+            Loop Files, tempPath . "\*.*", "FR" {
+                try {
+                    FileDelete(A_LoopFilePath)
+                    deleted++
+                } catch {
+                }
+            }
+            log .= "✅ Temp folder: " . deleted . " file(s) removed.`n"
+        }
+        if (cbPrefetch.Value) {
+            try {
+                RunWait('cmd.exe /c del /Q /F "C:\Windows\Prefetch\*.*"',, "Hide")
+                log .= "✅ Prefetch cleared.`n"
+            } catch {
+                log .= "⚠ Prefetch: Admin privileges required.`n"
+            }
+        }
+        resultTxt.Value := log != "" ? log : "Nothing selected to clean."
+    }
+
+    cleanGui.Show("w384 h288")
+}
+
+; --- 5. LIVE CLOCK ---
+LaunchLiveClock() {
+    static clockGui   := ""
+    static clockTimer := ""
+    static showDate   := true
+
+    if (IsObject(clockGui)) {
+        try { clockGui.Show()
+            return
+        }
+    }
+
+    clockGui := Gui("-MaximizeBox +AlwaysOnTop", "🕐 Live Clock")
+    clockGui.SetFont("s10", "Segoe UI")
+    clockGui.BackColor := "1a1a2e"
+    clockGui.OnEvent("Close", OnClockClose)
+    OnClockClose(*) {
+        SetTimer(UpdateClock, 0)
+        clockGui.Destroy()
+        clockGui := ""
+    }
+
+    ; Time display
+    clockGui.SetFont("bold s34 c00d4ff", "Segoe UI")
+    timeCtrl := clockGui.Add("Text", "x10 y14 w260 h52 Center", "00:00:00")
+
+    ; Date display
+    clockGui.SetFont("s10 c88c0d0", "Segoe UI")
+    dateCtrl := clockGui.Add("Text", "x10 y66 w260 h20 Center", "")
+
+    ; Click anywhere on clock to toggle date
+    clockGui.Add("Text", "x0 y94 w280 h16 Center c334455", "[ click to toggle date ]")
+    clickZone := clockGui.Add("Text", "x0 y0 w280 h112 +BackgroundTrans")
+    clickZone.OnEvent("Click", ToggleDate)
+
+    ToggleDate(*) {
+        showDate := !showDate
+        dateCtrl.Visible := showDate
+    }
+
+    UpdateClock() {
+        try {
+            timeCtrl.Value := FormatTime(, "HH:mm:ss")
+            dateCtrl.Value := FormatTime(, "dddd, MMMM d, yyyy")
+        }
+    }
+
+    SetTimer(UpdateClock, 1000)
+    UpdateClock()
+    clockGui.Show("w280 h116")
+}
+
+; --- 6. POMODORO TIMER ---
+LaunchPomodoro() {
+    static pomoGui    := ""
+    static pomoTimer  := ""
+    static pomoSecs   := 0
+    static pomoRunning := false
+    static pomoMode   := "Work"
+
+    if (IsObject(pomoGui)) {
+        try { pomoGui.Show()
+            return
+        }
+    }
+
+    pomoGui := Gui("-MaximizeBox +AlwaysOnTop", "🍅 Pomodoro Timer")
+    pomoGui.SetFont("s10", "Segoe UI")
+    pomoGui.OnEvent("Close", (*) => (SetTimer(TickPomo, 0), pomoGui.Destroy()))
+
+    pomoGui.SetFont("bold s11 c0x0055AA", "Segoe UI")
+    pomoGui.Add("Text", "x10 y10 w340 h22", "🍅 Pomodoro / Focus Timer")
+    pomoGui.SetFont("s9 Norm", "Segoe UI")
+
+    ; Settings row
+    pomoGui.Add("Text", "x10 y38 w70 h22 +0x200", "Work (min):")
+    editWork := pomoGui.Add("Edit", "x85 y36 w45 h24 Number", "25")
+    pomoGui.Add("Text", "x138 y38 w70 h22 +0x200", "Break (min):")
+    editBreak := pomoGui.Add("Edit", "x213 y36 w45 h24 Number", "5")
+
+    ; Big timer display
+    pomoGui.SetFont("bold s38 c0x005500", "Segoe UI")
+    timerDisp := pomoGui.Add("Text", "x0 y68 w360 h60 Center", "25:00")
+    pomoGui.SetFont("bold s11 c0x888888", "Segoe UI")
+    modeDisp  := pomoGui.Add("Text", "x0 y128 w360 h22 Center", "— WORK SESSION —")
+    pomoGui.SetFont("s10 Norm cDefault", "Segoe UI")
+
+    ; Buttons
+    btnStart  := pomoGui.Add("Button", "x10  y158 w100 h32", "▶ Start")
+    btnPause  := pomoGui.Add("Button", "x116 y158 w100 h32", "⏸ Pause")
+    btnReset  := pomoGui.Add("Button", "x222 y158 w100 h32", "↩ Reset")
+    btnPause.Enabled := false
+
+    ; Session counter
+    pomoGui.SetFont("s9 cGray", "Segoe UI")
+    sessionCtrl := pomoGui.Add("Text", "x10 y196 w340 h18 Center", "Sessions completed: 0")
+    pomoGui.SetFont("s10 Norm cDefault", "Segoe UI")
+    sessionCount := 0
+
+    UpdateTimerDisp() {
+        mins := pomoSecs // 60
+        secs := Mod(pomoSecs, 60)
+        timerDisp.Value := Format("{:02}:{:02}", mins, secs)
+    }
+
+    TickPomo() {
+        pomoSecs--
+        if (pomoSecs < 0) {
+            ; Session complete
+            SoundBeep(880, 400)
+            SoundBeep(1100, 600)
+            if (pomoMode == "Work") {
+                sessionCount++
+                sessionCtrl.Value := "Sessions completed: " . sessionCount
+                pomoMode  := "Break"
+                pomoSecs  := Integer(editBreak.Value) * 60
+                timerDisp.SetFont("cMaroon")
+                modeDisp.Value := "— BREAK TIME 🌿 —"
+            } else {
+                pomoMode  := "Work"
+                pomoSecs  := Integer(editWork.Value) * 60
+                timerDisp.SetFont("c0x005500")
+                modeDisp.Value := "— WORK SESSION —"
+            }
+            ToolTip(pomoMode == "Break" ? "🍅 Work session done! Take a break." : "🌿 Break over! Back to work.")
+            SetTimer(() => ToolTip(), -3000)
+        }
+        UpdateTimerDisp()
+    }
+
+    OnStartClick(*) {
+        if (!pomoRunning) {
+            pomoSecs    := Integer(editWork.Value) * 60
+            pomoMode    := "Work"
+            modeDisp.Value := "— WORK SESSION —"
+            timerDisp.SetFont("c0x005500")
+        }
+        SetTimer(TickPomo, 1000)
+        pomoRunning      := true
+        btnStart.Enabled  := false
+        btnPause.Enabled  := true
+        UpdateTimerDisp()
+    }
+
+    OnPauseClick(*) {
+        SetTimer(TickPomo, 0)
+        pomoRunning       := false
+        btnStart.Enabled  := true
+        btnPause.Enabled  := false
+    }
+
+    OnResetClick(*) {
+        SetTimer(TickPomo, 0)
+        pomoRunning       := false
+        pomoMode          := "Work"
+        pomoSecs          := Integer(editWork.Value) * 60
+        modeDisp.Value    := "— WORK SESSION —"
+        timerDisp.SetFont("c0x005500")
+        btnStart.Enabled  := true
+        btnPause.Enabled  := false
+        UpdateTimerDisp()
+    }
+
+    btnStart.OnEvent("Click", OnStartClick)
+    btnPause.OnEvent("Click", OnPauseClick)
+    btnReset.OnEvent("Click", OnResetClick)
+
+    pomoSecs := Integer(editWork.Value) * 60
+    UpdateTimerDisp()
+    pomoGui.Show("w360 h222")
+}
+
+; --- 7. COLOR PICKER ---
+LaunchColorPicker() {
+    static cpGui := ""
+    if (IsObject(cpGui)) {
+        try { cpGui.Show()
+            return
+        }
+    }
+
+    cpGui := Gui("-MaximizeBox +AlwaysOnTop", "🎨 Color Picker")
+    cpGui.SetFont("s10", "Segoe UI")
+    cpGui.OnEvent("Close", OnCpClose)
+    OnCpClose(*) {
+        SetTimer(TrackMouse, 0)
+        cpGui.Destroy()
+        cpGui := ""
+    }
+
+    cpGui.SetFont("bold s11 c0x0055AA", "Segoe UI")
+    cpGui.Add("Text", "x10 y10 w340 h22", "🎨 Real-Time Color Picker")
+    cpGui.SetFont("s9 Norm", "Segoe UI")
+    cpGui.Add("Text", "x10 y32 w340 h18",
+        "Move mouse anywhere — color updates live. Click Lock to freeze.")
+
+    ; Big live preview box
+    colorBox := cpGui.Add("Progress", "x10 y56 w90 h70 Background000000")
+
+    ; Live readouts
+    cpGui.SetFont("s9 Norm", "Segoe UI")
+    cpGui.Add("Text", "x108 y58 w32 h20 +0x200", "HEX:")
+    hexCtrl := cpGui.Add("Edit", "x142 y56 w130 h22 +ReadOnly", "#000000")
+    cpGui.Add("Text", "x108 y84 w32 h20 +0x200", "RGB:")
+    rgbCtrl := cpGui.Add("Edit", "x142 y82 w130 h22 +ReadOnly", "0, 0, 0")
+    cpGui.Add("Text", "x108 y110 w32 h20 +0x200", "Pos:")
+    posCtrl := cpGui.Add("Edit", "x142 y108 w130 h22 +ReadOnly", "X: 0  Y: 0")
+
+    ; Buttons
+    isLocked := false
+    btnLock    := cpGui.Add("Button", "x10  y138 w90  h28", "🔒 Lock")
+    btnCopyHex := cpGui.Add("Button", "x106 y138 w118 h28", "📋 Copy HEX")
+    btnCopyRgb := cpGui.Add("Button", "x230 y138 w118 h28", "📋 Copy RGB")
+
+    cpGui.SetFont("s8 cGray Italic", "Segoe UI")
+    cpGui.Add("Text", "x10 y174 w340 h16",
+        "Updates every 100ms. Lock freezes the current color for copying.")
+
+    btnLock.OnEvent("Click", ToggleLock)
+    btnCopyHex.OnEvent("Click", (*) => (A_Clipboard := hexCtrl.Value, ToolTip("HEX copied!"), SetTimer(() => ToolTip(), -1500)))
+    btnCopyRgb.OnEvent("Click", (*) => (A_Clipboard := rgbCtrl.Value, ToolTip("RGB copied!"), SetTimer(() => ToolTip(), -1500)))
+
+    ToggleLock(*) {
+        isLocked := !isLocked
+        btnLock.Text := isLocked ? "🔓 Unlock" : "🔒 Lock"
+    }
+
+    TrackMouse() {
+        if (isLocked)
+            return
+        mx := 0, my := 0
+        MouseGetPos(&mx, &my)
+        try {
+            clr := PixelGetColor(mx, my, "RGB")
+        } catch {
+            return
+        }
+        r := (clr >> 16) & 0xFF
+        g := (clr >>  8) & 0xFF
+        b :=  clr        & 0xFF
+        hexCtrl.Value := Format("#{:02X}{:02X}{:02X}", r, g, b)
+        rgbCtrl.Value := r . ", " . g . ", " . b
+        posCtrl.Value := "X: " . mx . "  Y: " . my
+        colorBox.Opt("Background" . Format("{:06X}", clr))
+    }
+
+    SetTimer(TrackMouse, 100)
+    cpGui.Show("w358 h198")
+}
+
+; --- 8. TEXT CASE CONVERTER ---
+LaunchCaseConverter() {
+    static caseGui := ""
+    if (IsObject(caseGui)) {
+        try { caseGui.Show()
+            return
+        }
+    }
+
+    caseGui := Gui("-MaximizeBox +AlwaysOnTop", "🔡 Text Case Converter")
+    caseGui.SetFont("s10", "Segoe UI")
+    caseGui.OnEvent("Close", (*) => caseGui.Destroy())
+
+    caseGui.SetFont("bold s11 c0x0055AA", "Segoe UI")
+    caseGui.Add("Text", "x10 y10 w400 h22", "🔡 Text Case Converter")
+    caseGui.SetFont("s9 Norm", "Segoe UI")
+    caseGui.Add("Text", "x10 y34 w400 h18", "Paste your text below, choose a conversion, and copy the result.")
+
+    caseGui.Add("Text", "x10 y58 w80 h18", "Input Text:")
+    inputEdit := caseGui.Add("Edit", "x10 y76 w400 h100 +Multi +WantReturn +VScroll +Wrap")
+
+    caseGui.Add("Text", "x10 y184 w80 h18", "Output Text:")
+    outputEdit := caseGui.Add("Edit", "x10 y202 w400 h100 +Multi +ReadOnly +VScroll +Wrap")
+
+    ; Conversion buttons
+    btnUpper  := caseGui.Add("Button", "x10  y310 w90 h28", "⬆ UPPER")
+    btnLower  := caseGui.Add("Button", "x106 y310 w90 h28", "⬇ lower")
+    btnTitle  := caseGui.Add("Button", "x202 y310 w90 h28", "📖 Title")
+    btnSent   := caseGui.Add("Button", "x298 y310 w90 h28", "💬 Sentence")
+    btnCopyOut := caseGui.Add("Button", "x10  y346 w120 h28", "📋 Copy Output")
+    btnPasteIn := caseGui.Add("Button", "x136 y346 w120 h28", "📋 Paste as Input")
+    btnSwap    := caseGui.Add("Button", "x262 y346 w80 h28", "⇅ Swap")
+    btnClearAll := caseGui.Add("Button", "x348 y346 w62 h28", "🗑 Clear")
+
+    ToTitleCase(txt) {
+        result := ""
+        cap := true
+        Loop Parse, txt {
+            ch := A_LoopField
+            if (ch == " " || ch == "`n" || ch == "`t" || ch == "." || ch == "!" || ch == "?") {
+                result .= ch
+                cap := true
+            } else if (cap) {
+                result .= StrUpper(ch)
+                cap := false
+            } else {
+                result .= StrLower(ch)
+            }
+        }
+        return result
+    }
+
+    ToSentenceCase(txt) {
+        result := ""
+        cap := true
+        Loop Parse, txt {
+            ch := A_LoopField
+            if (ch == "." || ch == "!" || ch == "?") {
+                result .= ch
+                cap := true
+            } else if (ch == " " || ch == "`n" || ch == "`t") {
+                result .= ch
+            } else if (cap) {
+                result .= StrUpper(ch)
+                cap := false
+            } else {
+                result .= StrLower(ch)
+            }
+        }
+        return result
+    }
+
+    btnUpper.OnEvent("Click",   (*) => (outputEdit.Value := StrUpper(inputEdit.Value)))
+    btnLower.OnEvent("Click",   (*) => (outputEdit.Value := StrLower(inputEdit.Value)))
+    btnTitle.OnEvent("Click",   (*) => (outputEdit.Value := ToTitleCase(inputEdit.Value)))
+    btnSent.OnEvent("Click",    (*) => (outputEdit.Value := ToSentenceCase(inputEdit.Value)))
+    btnCopyOut.OnEvent("Click", (*) => (A_Clipboard := outputEdit.Value, ToolTip("Output copied!"), SetTimer(() => ToolTip(), -1500)))
+    btnPasteIn.OnEvent("Click", (*) => (inputEdit.Value := A_Clipboard))
+    btnSwap.OnEvent("Click",    (*) => (tmp := inputEdit.Value, inputEdit.Value := outputEdit.Value, outputEdit.Value := tmp))
+    btnClearAll.OnEvent("Click",(*) => (inputEdit.Value := "", outputEdit.Value := ""))
+
+    caseGui.Show("w424 h384")
 }

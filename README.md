@@ -90,7 +90,7 @@ By putting an intuitive "no-code" GUI over the automation engine, the project ac
 1. **Empowering Non-Technical Coworkers:** Teammates without a programming background can fully leverage, customize, and toggle advanced workflow automations on their own—anytime they need to—without ever touching a line of code or causing a bottleneck.
 2. **Mitigating Human Error:** Automating complex transactional number progressions, multi-line corporate tax deductions, and extensive template indexing has drastically dropped manual keying fatigue and improved overall data-entry accuracy.
 
-This project showcases how lightweight scripting frameworks can be turned into a robust, enterprise-ready workflow solution that delivers immediate operational efficiency.
+This project showcases how lightweight scripting frameworks can be turned into a robust workflow solution that delivers immediate operational efficiency.
 ---
 
 ## 🛡️ Security & Integrity

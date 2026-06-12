@@ -14,30 +14,25 @@ KeyTap Pro is an open-source, fully portable workflow automation suite built usi
 *   **Auto-Incrementing Engine:** Instantly prints a structured sequence (Prefix + Configurable Zero-Padded Digits + Suffix) that automatically increments and updates locally upon execution.
 *   **Multi-Profile Architecture:** Create and manage independent profile environments. Each profile dynamically tracks its own distinct sequence numbers and formatting styles, perfect for switching between different clients, branches, or document types.
 *   **Live Preview:** Adjust formatting parameters with real-time text feedback before committing changes.
-<img width="1366" height="768" alt="image" src="https://github.com/user-attachments/assets/264c4f12-e72e-4bf8-b924-de607ed5bef1" />
 
 
 ### 2. 💰 Advanced VAT & Discount Tool
 *   **In-Place Clipboard Processing:** Highlight any numerical value in any window, trigger the shortcut, and the tool will automatically compute and overwrite the text with the processed Net or Gross amount.
 *   **Multi-Line Parsing Support:** Handles bulk processing cleanly by evaluating multi-line text strings line-by-line, omitting non-numeric anomalies safely.
 *   **Built-in Workspace Calculator:** Features a fully visual data-entry panel providing comprehensive financial breakdowns (Gross, Applied Discount, Calculated Tax, and Net Total) with one-click clipboard copying.
-  <img width="1366" height="768" alt="image" src="https://github.com/user-attachments/assets/3ba9e62b-b867-420d-b601-cedc07d27971" />
 
 
 ### 3. 📂 Workflow Batch Folder Launcher
 *   **One-Key Workspace Deployment:** Assign global hardware shortcuts to custom folder paths to instantly deploy targeted resources with a single key press.
 *   **Ghost-Proof Input Security:** Engineered with a specialized `SendTextSafe` execution layer that temporarily blocks folder shortcuts while text automation is typing. This entirely eliminates accidental folder pop-ups caused by uppercase letter modifiers or shifting states.
-<img width="1366" height="768" alt="image" src="https://github.com/user-attachments/assets/58b3a88d-4efe-40a0-aeb6-aebdbe46c12d" />
 
 ### 4. 🧰 Micro-Utility Tooling (Mini Apps)
 *   **Interface Integration:** Features a brand-new, dedicated dashboard panel to host upcoming localized tools and quick-action office extensions[cite: 2, 4].
 *   **Text Manipulation Engine:** Integrated text-processing framework built for on-the-fly case management (`UPPERCASE`, `lowercase`, `Title Case`, and `Sentence case`).
-<img width="1366" height="768" alt="image" src="https://github.com/user-attachments/assets/00b6af1a-0a22-4f5b-b7dc-f8b547f95df0" />
 
 ### 5. ⌨️ Dynamic Custom Text Hotkeys
 *   **No-Code Macro Management:** An interactive built-in control panel allowing users to easily map standard system modifiers (`Ctrl`, `Alt`, `Shift`) to multi-line text templates, common system commands, or boilerplate communications.
 *   **Toggle & Reorder Functionality:** Quickly switch individual macros on or off, filter through saved text sequences, and reorder shortcut configurations effortlessly.
-<img width="1366" height="768" alt="image" src="https://github.com/user-attachments/assets/405d7125-7852-41dc-8fd4-7201c6d2f110" />
 
 ---
 
